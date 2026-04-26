@@ -123,6 +123,10 @@ function initClubPicker() {
       const club = CLUBS.find(c => c.id === opt.dataset.id);
       if (!club) return;
       activeClub = club;
+      // Sync member wallet to the selected club's baseline
+      const m = CLUB_MEMBERS[club.id] || { avail: 0, locked: 0 };
+      walletState.member.available = m.avail;
+      walletState.member.locked = m.locked;
       dropdown.classList.remove('open');
       btn.classList.remove('open');
       renderClubPicker();
@@ -170,9 +174,8 @@ const CLUB_MEMBERS = {
 };
 
 function renderTotals() {
-  const m = CLUB_MEMBERS[activeClub.id] || { avail: 0, locked: 0 };
-  const membersAvail = m.avail;
-  const membersLocked = m.locked;
+  const membersAvail = walletState.member.available;
+  const membersLocked = walletState.member.locked;
   const membersTotal = membersAvail + membersLocked;
   const circulating = activeClub.club + activeClub.dscLab + membersTotal;
 
