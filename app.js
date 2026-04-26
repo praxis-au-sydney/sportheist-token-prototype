@@ -50,16 +50,8 @@ const walletState = {
   club: { balance: 12400 },
 };
 
-// --- Activity state machine ---
-const activityState = {
-  active: false,
-  type: null,    // 'idea' | 'vote' | 'like'
-  cost: 0,
-  desc: '',
-  support: 0,
-  reject: 0,
-  like: 0,
-};
+// --- Active activities list ---
+let activities = [];
 
 // --- State ---
 let activeClub = CLUBS[0];
@@ -295,31 +287,48 @@ function renderActivityPanel() {
   const panel = $('#activity-panel');
   if (!panel) return;
 
-  if (!activityState.active) {
+  if (activities.length === 0) {
     panel.style.display = 'none';
     return;
   }
 
   panel.style.display = 'block';
 
-  const titleMap = {
-    idea: `Idea: ${activityState.desc.slice(0, 40) || 'Untitled'}${activityState.desc.length > 40 ? '…' : ''}`,
-    vote: `Proposal #${Date.now().toString().slice(-4)}`,
-    like: `Like to Veto`,
-  };
-
-  $('#activity-title').textContent = titleMap[activityState.type] || 'Activity';
-  $('#activity-meta').innerHTML = `<strong>${activityState.cost}</strong> tokens locked`;
-  $('#activity-support-count').textContent = activityState.support;
-  $('#activity-reject-count').textContent = activityState.reject;
-  $('#activity-like-count').textContent = activityState.like;
+  panel.innerHTML = activities.map(a => {
+    const titleMap = {
+      idea: `Idea: ${a.desc.slice(0, 40) || 'Untitled'}${a.desc.length > 40 ? '…' : ''}`,
+      vote: `Proposal #${a.id.toString().slice(-4)}`,
+      like: 'Like to Veto',
+    };
+    return `
+      <div class="activity-card">
+        <div class="activity-panel-header">
+          <div class="activity-title">${titleMap[a.type] || 'Activity'}</div>
+          <span class="activity-badge in-progress">In Progress</span>
+        </div>
+        <div class="activity-meta"><strong>${a.cost}</strong> tokens locked</div>
+        <div class="activity-indicator">
+          <span class="activity-chip support"><span class="dot"></span>${a.support} votes</span>
+          <span class="activity-chip reject"><span class="dot"></span>${a.reject} reject</span>
+          <span class="activity-chip like"><span class="dot"></span>${a.like} likes</span>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-100);">
+          <div class="section-title" style="margin-bottom:8px;">Simulate Outcome (demo)</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline sim-btn" data-action="complete" data-id="${a.id}" style="font-size:12px;padding:5px 12px;">Complete ✓</button>
+            <button class="btn btn-outline sim-btn" data-action="vetoed" data-id="${a.id}" style="font-size:12px;padding:5px 12px;">Vetoed ✗</button>
+            <button class="btn btn-outline sim-btn" data-action="lapsed" data-id="${a.id}" style="font-size:12px;padding:5px 12px;">Lapsed ○</button>
+            <button class="btn btn-outline sim-btn" data-action="cancelled" data-id="${a.id}" style="font-size:12px;padding:5px 12px;">Cancelled ✕</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 function initActivityHandlers() {
-  // Start Activity button
   $('#btn-start-activity').addEventListener('click', () => openModal('activity-modal'));
 
-  // Submit activity
   $('#btn-start-activity-confirm').addEventListener('click', () => {
     const type = $('#activity-type').value;
     const desc = $('#activity-desc').value;
@@ -333,86 +342,63 @@ function initActivityHandlers() {
     walletState.member.available -= cost;
     walletState.member.locked += cost;
 
-    activityState.active = true;
-    activityState.type = type;
-    activityState.cost = cost;
-    activityState.desc = desc;
-    activityState.support = 0;
-    activityState.reject = 0;
-    activityState.like = 0;
+    const activity = {
+      id: Date.now(),
+      type,
+      cost,
+      desc,
+      support: type === 'vote' ? 3 : 0,
+      reject: type === 'vote' ? 1 : 0,
+      like: type === 'vote' ? 2 : type === 'idea' ? 4 : 0,
+    };
+    activities.push(activity);
 
-    // Seed some initial votes for demo
-    if (type === 'vote') {
-      activityState.support = 3;
-      activityState.reject = 1;
-      activityState.like = 2;
-    } else if (type === 'idea') {
-      activityState.like = 4;
-    }
+    addTx('member', {
+      title: `${ACTIVITY_LABELS[type]} Started`,
+      meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + (desc ? ' · ' + desc.slice(0, 30) : ''),
+      amount: `-${cost}`,
+      type: 'locked',
+      note: 'Tokens moved to Locked',
+    });
 
     $('#activity-desc').value = '';
     closeModal('activity-modal');
     render();
   });
 
-  // Outcome simulation buttons
-  $('#btn-sim-complete').addEventListener('click', () => {
-    if (!activityState.active) return;
-    // Voter tokens spent → DSC Lab (conservation: member locked down, dscLab up by same amount)
-    walletState.member.locked -= activityState.cost;
-    activeClub.dscLab += activityState.cost;
-    addTx('member', {
-      title: `${ACTIVITY_LABELS[activityState.type]} Completed`,
-      meta: `Tokens spent → DSC Lab`,
-      amount: `-${activityState.cost}`,
-      type: 'out',
-    });
-    activityState.active = false;
-    render();
-  });
+  // Single delegated listener handles outcome buttons for all activities
+  $('#activity-panel').addEventListener('click', e => {
+    const btn = e.target.closest('.sim-btn');
+    if (!btn) return;
 
-  $('#btn-sim-vetoed').addEventListener('click', () => {
-    if (!activityState.active) return;
-    walletState.member.available += activityState.cost;
-    walletState.member.locked -= activityState.cost;
-    addTx('member', {
-      title: `${ACTIVITY_LABELS[activityState.type]} Vetoed`,
-      meta: `Tokens unlocked`,
-      amount: `+${activityState.cost}`,
-      type: 'in',
-    });
-    activityState.active = false;
-    render();
-  });
+    const id = parseInt(btn.dataset.id);
+    const action = btn.dataset.action;
+    const idx = activities.findIndex(a => a.id === id);
+    if (idx === -1) return;
 
-  $('#btn-sim-lapsed').addEventListener('click', () => {
-    if (!activityState.active) return;
-    // Likers get unlocked, sponsor forfeits (half to DSC Lab)
-    const half = Math.floor(activityState.cost / 2);
-    walletState.member.available += activityState.cost - half;
-    walletState.member.locked -= activityState.cost;
-    activeClub.dscLab += half;
-    addTx('member', {
-      title: `${ACTIVITY_LABELS[activityState.type]} Lapsed`,
-      meta: `${half} sponsor tokens forfeited`,
-      amount: `+${activityState.cost - half}`,
-      type: 'in',
-    });
-    activityState.active = false;
-    render();
-  });
+    const a = activities[idx];
 
-  $('#btn-sim-cancelled').addEventListener('click', () => {
-    if (!activityState.active) return;
-    walletState.member.locked -= activityState.cost;
-    activeClub.dscLab += activityState.cost;
-    addTx('member', {
-      title: `${ACTIVITY_LABELS[activityState.type]} Cancelled`,
-      meta: `Sponsor forfeit → DSC Lab`,
-      amount: `-${activityState.cost}`,
-      type: 'out',
-    });
-    activityState.active = false;
+    if (action === 'complete') {
+      walletState.member.locked -= a.cost;
+      activeClub.dscLab += a.cost;
+      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Completed`, meta: 'Tokens spent → DSC Lab', amount: `-${a.cost}`, type: 'out' });
+    } else if (action === 'vetoed') {
+      walletState.member.available += a.cost;
+      walletState.member.locked -= a.cost;
+      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Vetoed`, meta: 'Tokens unlocked', amount: `+${a.cost}`, type: 'in' });
+    } else if (action === 'lapsed') {
+      const half = Math.floor(a.cost / 2);
+      walletState.member.available += a.cost - half;
+      walletState.member.locked -= a.cost;
+      activeClub.dscLab += half;
+      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Lapsed`, meta: `${half} sponsor tokens forfeited`, amount: `+${a.cost - half}`, type: 'in' });
+    } else if (action === 'cancelled') {
+      walletState.member.locked -= a.cost;
+      activeClub.dscLab += a.cost;
+      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Cancelled`, meta: 'Sponsor forfeit → DSC Lab', amount: `-${a.cost}`, type: 'out' });
+    }
+
+    activities.splice(idx, 1);
     render();
   });
 }

@@ -650,6 +650,18 @@ body {
 .activity-chip.reject .dot { background: var(--red-500); }
 .activity-chip.like .dot { background: var(--purple-600); }
 
+/* --- Activity cards (multiple activities) --- */
+.activity-card {
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--gray-200);
+}
+.activity-card:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
 /* --- Activity panel (Member View) --- */
 .activity-panel {
   background: var(--white);

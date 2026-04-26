@@ -200,39 +200,8 @@
         <button class="btn btn-outline" id="btn-start-activity">Start Activity</button>
       </div>
 
-      <!-- Activity Panel (shown when an activity is in progress) -->
-      <div class="activity-panel" id="activity-panel" style="display:none;">
-        <div class="activity-panel-header">
-          <div class="activity-title" id="activity-title">Proposal #91</div>
-          <span class="activity-badge in-progress">In Progress</span>
-        </div>
-        <div class="activity-meta" id="activity-meta">
-          <strong>50</strong> tokens locked
-        </div>
-        <div class="activity-indicator" id="activity-indicator">
-          <span class="activity-chip support">
-            <span class="dot"></span>
-            <span id="activity-support-count">0</span> votes
-          </span>
-          <span class="activity-chip reject">
-            <span class="dot"></span>
-            <span id="activity-reject-count">0</span> reject
-          </span>
-          <span class="activity-chip like">
-            <span class="dot"></span>
-            <span id="activity-like-count">0</span> likes
-          </span>
-        </div>
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-100);">
-          <div class="section-title" style="margin-bottom:8px;">Simulate Outcome (demo)</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-outline" id="btn-sim-complete" style="font-size:12px;padding:5px 12px;">Complete ✓</button>
-            <button class="btn btn-outline" id="btn-sim-vetoed" style="font-size:12px;padding:5px 12px;">Vetoed ✗</button>
-            <button class="btn btn-outline" id="btn-sim-lapsed" style="font-size:12px;padding:5px 12px;">Lapsed ○</button>
-            <button class="btn btn-outline" id="btn-sim-cancelled" style="font-size:12px;padding:5px 12px;">Cancelled ✕</button>
-          </div>
-        </div>
-      </div>
+      <!-- Activity Panel (rendered dynamically by JS) -->
+      <div class="activity-panel" id="activity-panel" style="display:none;"></div>
 
       <!-- Start Activity Modal -->
       <div class="modal-overlay" id="activity-modal">
