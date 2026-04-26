@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SportHeist — Token Flow Prototype</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ======================= HEADER ======================= -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">⬡</div>
+      <span>Sports Heist</span>
+    </div>
+    <div class="header-right">
+    </div>
+  </header>
+
+  <!-- ======================= TAB BAR ======================= -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="member">Member View</button>
+    <button class="tab-btn" data-tab="club">Club View</button>
+    <button class="tab-btn" data-tab="dsclab">DSC Lab View</button>
+  </nav>
+
+  <!-- ======================= MAIN ======================= -->
+  <main class="main-content">
+
+    <!-- ========== ECOSYSTEM DIAGRAM (DSC Lab tab only) ========== -->
+    <div class="ecosystem-diagram" id="ecosystem-diagram" style="display:none;">
+      <h3>Ecosystem Overview</h3>
+      <svg class="flow-svg" id="ecosystem-svg" viewBox="0 0 800 220" xmlns="http://www.w3.org/2000/svg">
+        <!-- Stripe boxes -->
+        <rect x="10" y="30" width="110" height="50" rx="8" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="65" y="52" text-anchor="middle" font-size="11" fill="#4338ca" font-weight="600">Member buys</text>
+        <text x="65" y="67" text-anchor="middle" font-size="10" fill="#6366f1">Stripe</text>
+
+        <rect x="10" y="140" width="110" height="50" rx="8" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="65" y="162" text-anchor="middle" font-size="11" fill="#4338ca" font-weight="600">Club buys</text>
+        <text x="65" y="177" text-anchor="middle" font-size="10" fill="#6366f1">Stripe</text>
+
+        <!-- DSC Lab -->
+        <rect x="220" y="60" width="130" height="100" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="285" y="83" text-anchor="middle" font-size="11" fill="#6d28d9" font-weight="700">DSC Lab</text>
+        <text x="285" y="98" text-anchor="middle" font-size="10" fill="#7c3aed">(per club)</text>
+        <text x="285" y="118" text-anchor="middle" font-size="12" fill="#111827" font-weight="700" id="diagram-dsc-balance">46,570</text>
+        <text x="285" y="133" text-anchor="middle" font-size="9" fill="#6b7280">available</text>
+
+        <!-- Club Wallet -->
+        <rect x="460" y="60" width="130" height="100" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="525" y="83" text-anchor="middle" font-size="11" fill="#15803d" font-weight="700">Club Wallet</text>
+        <text x="525" y="118" text-anchor="middle" font-size="12" fill="#111827" font-weight="700" id="diagram-club-balance">12,400</text>
+        <text x="525" y="133" text-anchor="middle" font-size="9" fill="#6b7280">balance</text>
+
+        <!-- Member Wallet -->
+        <rect x="650" y="30" width="140" height="160" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+        <text x="720" y="53" text-anchor="middle" font-size="11" fill="#374151" font-weight="700">Member Wallet</text>
+        <text x="720" y="78" text-anchor="middle" font-size="10" fill="#16a34a" font-weight="600">Available</text>
+        <text x="720" y="93" text-anchor="middle" font-size="13" fill="#111827" font-weight="700" id="diagram-avail">3,210</text>
+        <text x="720" y="113" text-anchor="middle" font-size="10" fill="#d97706" font-weight="600">Locked</text>
+        <text x="720" y="128" text-anchor="middle" font-size="13" fill="#111827" font-weight="700" id="diagram-locked">820</text>
+
+        <!-- Arrows: Stripe -> DSC Lab (mint) -->
+        <line x1="120" y1="55" x2="215" y2="90" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrowIndigo)"/>
+        <text x="158" y="70" font-size="9" fill="#6366f1">MINT</text>
+
+        <line x1="120" y1="165" x2="455" y2="110" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="275" y="135" font-size="9" fill="#6366f1">MINT</text>
+
+        <!-- Arrows: DSC Lab -> Club (gift) -->
+        <line x1="350" y1="110" x2="455" y2="110" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
+        <text x="395" y="104" font-size="9" fill="#7c3aed">Gift</text>
+
+        <!-- Arrow: Club -> Member (distribute) -->
+        <line x1="590" y1="110" x2="645" y2="110" stroke="#16a34a" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+        <text x="612" y="104" font-size="9" fill="#16a34a">Distribute</text>
+
+        <!-- Arrow: Member -> DSC Lab (spend) -->
+        <line x1="700" y1="190" x2="330" y2="195" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arrowRed)"/>
+        <text x="510" y="208" font-size="9" fill="#ef4444">Spend (on-chain)</text>
+
+        <!-- Burn arrow from DSC Lab -->
+        <line x1="285" y1="160" x2="285" y2="210" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arrowRed)"/>
+        <text x="295" y="188" font-size="9" fill="#ef4444">Burn</text>
+
+        <!-- Arrow markers -->
+        <defs>
+          <marker id="arrowIndigo" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#6366f1"/>
+          </marker>
+          <marker id="arrowPurple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#7c3aed"/>
+          </marker>
+          <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#16a34a"/>
+          </marker>
+          <marker id="arrowRed" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#ef4444"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+
+    <!-- ==================== CLUB PICKER (Club + DSC Lab tabs) ==================== -->
+    <div class="club-picker-wrap" id="club-picker-wrap" style="display:none;">
+      <button class="club-picker-btn" id="club-picker-btn">
+        <span>
+          <span class="club-name">Collingwood Magpies</span>
+          <span class="club-dots" style="font-weight:400;color:#6b7280;font-size:12px;margin-left:8px;display:block;margin-top:2px;">
+            Club: 12,400 · DSC Lab: 46,570 · ↑65k / ↓2k
+          </span>
+        </span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="club-picker-dropdown" id="club-picker-dropdown">
+        <div class="club-option selected" data-id="collingwood">
+          <div class="club-option-name">Collingwood Magpies</div>
+          <div class="club-option-meta">
+            <span>Club: <strong>12,400</strong></span>
+            <span>DSC Lab: <strong>46,570</strong></span>
+            <span><span class="up">↑65,000</span> / <span class="down">↓2,000</span></span>
+          </div>
+        </div>
+        <div class="club-option" data-id="gsw">
+          <div class="club-option-name">Golden State Warriors</div>
+          <div class="club-option-meta">
+            <span>Club: <strong>8,100</strong></span>
+            <span>DSC Lab: <strong>17,380</strong></span>
+            <span><span class="up">↑30,000</span> / <span class="down">↓1,000</span></span>
+          </div>
+        </div>
+        <div class="club-option" data-id="lakers">
+          <div class="club-option-name">LA Lakers</div>
+          <div class="club-option-meta">
+            <span>Club: <strong>500</strong></span>
+            <span>DSC Lab: <strong>11,480</strong></span>
+            <span><span class="up">↑15,000</span> / <span class="down">↓0</span></span>
+          </div>
+        </div>
+      </div>
+    </div><!-- end club-picker-wrap -->
+
+    <!-- ========== TOTALS STRIP (Club + DSC Lab tabs) ========== -->
+    <div class="totals-strip" id="totals-strip" style="display:none;">
+      <div class="totals-card">
+        <div class="totals-card-label">Club Wallet</div>
+        <div class="totals-card-value">12,400</div>
+      </div>
+      <div class="totals-card">
+        <div class="totals-card-label">DSC Lab</div>
+        <div class="totals-card-value">46,570</div>
+      </div>
+      <div class="totals-card">
+        <div class="totals-card-label">Members</div>
+        <div class="totals-card-value">3,210 available</div>
+        <div class="totals-card-sub">820 locked</div>
+      </div>
+      <div class="totals-card">
+        <div class="totals-card-label">Circulating</div>
+        <div class="totals-card-value">63,000</div>
+      </div>
+    </div>
+
+    <!-- ==================== MEMBER VIEW ==================== -->
+    <div class="tab-panel active" data-tab="member">
+
+      <!-- Wallet Card -->
+      <div class="wallet-card">
+        <div class="wallet-card-header">
+          <div class="wallet-card-title">My Wallet</div>
+        </div>
+        <div class="wallet-balances">
+          <div class="wallet-balance available">
+            <div class="wallet-balance-value" id="member-avail">3,210</div>
+            <div class="wallet-balance-label">Available</div>
+          </div>
+          <div class="wallet-balance locked">
+            <div class="wallet-balance-value" id="member-locked">820</div>
+            <div class="wallet-balance-label">Locked</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #f3f4f6;font-size:12px;color:#6b7280;">
+          Total Minted (lifetime): <strong id="member-minted" style="color:#111827;">65,000</strong>
+        </div>
+      </div>
+
+      <!-- Auto top-up + Purchase -->
+      <div class="auto-topup-row">
+        <div class="auto-topup-label">
+          Auto Top-Up
+          <span>Trigger when Available &lt; required for next activity</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="auto-topup-toggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-primary" id="btn-purchase">Purchase Credit</button>
+        <button class="btn btn-outline" id="btn-start-activity">Start Activity</button>
+      </div>
+
+      <!-- Activity Panel (shown when an activity is in progress) -->
+      <div class="activity-panel" id="activity-panel" style="display:none;">
+        <div class="activity-panel-header">
+          <div class="activity-title" id="activity-title">Proposal #91</div>
+          <span class="activity-badge in-progress">In Progress</span>
+        </div>
+        <div class="activity-meta" id="activity-meta">
+          <strong>50</strong> tokens locked
+        </div>
+        <div class="activity-indicator" id="activity-indicator">
+          <span class="activity-chip support">
+            <span class="dot"></span>
+            <span id="activity-support-count">0</span> votes
+          </span>
+          <span class="activity-chip reject">
+            <span class="dot"></span>
+            <span id="activity-reject-count">0</span> reject
+          </span>
+          <span class="activity-chip like">
+            <span class="dot"></span>
+            <span id="activity-like-count">0</span> likes
+          </span>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-100);">
+          <div class="section-title" style="margin-bottom:8px;">Simulate Outcome (demo)</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline" id="btn-sim-complete" style="font-size:12px;padding:5px 12px;">Complete ✓</button>
+            <button class="btn btn-outline" id="btn-sim-vetoed" style="font-size:12px;padding:5px 12px;">Vetoed ✗</button>
+            <button class="btn btn-outline" id="btn-sim-lapsed" style="font-size:12px;padding:5px 12px;">Lapsed ○</button>
+            <button class="btn btn-outline" id="btn-sim-cancelled" style="font-size:12px;padding:5px 12px;">Cancelled ✕</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Start Activity Modal -->
+      <div class="modal-overlay" id="activity-modal">
+        <div class="modal">
+          <div class="modal-header">
+            <div class="modal-title">Start Activity</div>
+            <button class="modal-close">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label class="form-label">Activity type</label>
+              <select class="form-select" id="activity-type">
+                <option value="idea">Idea (20 tokens)</option>
+                <option value="vote">Vote / Proposal (50 tokens)</option>
+                <option value="like">Like / Like-to-veto (10 tokens)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea class="form-textarea" id="activity-desc" placeholder="Describe your idea or proposal..."></textarea>
+            </div>
+            <div class="form-hint" style="margin-top:4px;font-size:12px;color:var(--gray-500);">Tokens will move from Available → Locked on submit</div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outline modal-cancel">Cancel</button>
+            <button class="btn btn-primary" id="btn-start-activity-confirm">Submit</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transaction History -->
+      <div class="section-title">Transaction History</div>
+      <div class="tx-list" id="member-tx-list"></div>
+
+    </div>
+
+    <!-- ==================== CLUB VIEW ==================== -->
+    <div class="tab-panel" data-tab="club">
+
+      <!-- Wallet Card -->
+      <div class="wallet-card">
+        <div class="wallet-card-header">
+          <div class="wallet-card-title">Club Wallet</div>
+        </div>
+        <div class="wallet-balances">
+          <div class="wallet-balance">
+            <div class="wallet-balance-value" id="club-balance" style="color:#111827;">12,400</div>
+            <div class="wallet-balance-label">Balance</div>
+          </div>
+        </div>
+        <div class="funding-sources">
+          <span class="funding-chip purchase">Funded by: Purchase</span>
+          <span class="funding-chip gift">DSC Lab Gift</span>
+          <span class="funding-chip donation">Donation on expiry</span>
+        </div>
+        <div class="minted-burned-row">
+          <div class="mb-stat"><strong class="up" id="club-minted">↑65,000</strong> minted (lifetime)</div>
+          <div class="mb-stat"><strong class="down" id="club-burned">↓2,000</strong> burned (lifetime)</div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-outline" id="btn-club-purchase">Purchase Credits</button>
+        <button class="btn btn-primary" id="btn-distribute">Distribute to Members</button>
+      </div>
+
+      <!-- Transaction History -->
+      <div class="section-title">Transaction History</div>
+      <div class="tx-list" id="club-tx-list"></div>
+
+    </div>
+
+    <!-- ==================== DSC LAB VIEW ==================== -->
+    <div class="tab-panel" data-tab="dsclab">
+
+      <!-- Wallet Card -->
+      <div class="wallet-card">
+        <div class="wallet-card-header">
+          <div class="wallet-card-title">DSC Lab Wallet <span style="font-weight:400;font-size:11px;color:#6b7280;">(per club)</span></div>
+        </div>
+        <div class="wallet-balances">
+          <div class="wallet-balance available">
+            <div class="wallet-balance-value" id="dsclab-balance">46,570</div>
+            <div class="wallet-balance-label">Available</div>
+          </div>
+        </div>
+        <div class="minted-burned-row">
+          <div class="mb-stat"><strong class="up" id="dsclab-minted">↑65,000</strong> total minted</div>
+          <div class="mb-stat"><strong class="down" id="dsclab-burned">↓2,000</strong> total burned</div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-primary" id="btn-gift">Gift to Club</button>
+        <button class="btn btn-danger" id="btn-burn">Burn Tokens</button>
+      </div>
+
+      <!-- Recent Transactions -->
+      <div class="section-title">Recent Transactions</div>
+      <div class="tx-list" id="dsclab-tx-list"></div>
+
+    </div>
+
+  </main>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- Purchase Modal (Member) -->
+  <div class="modal-overlay" id="purchase-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Purchase Credits</div>
+        <button class="modal-close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Amount (tokens)</label>
+          <input type="number" class="form-input" id="purchase-amount" placeholder="e.g. 100" min="1">
+          <div class="form-hint">Stripe charge will be processed via payment integration</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-purchase-confirm">Confirm Purchase</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Distribute Modal (Club) -->
+  <div class="modal-overlay" id="distribute-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Distribute to Members</div>
+        <button class="modal-close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Select Members</label>
+          <select class="form-select">
+            <option>All active members</option>
+            <option>Members with locked balance</option>
+            <option>Selected members (multi-select)...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount per member</label>
+          <input type="number" class="form-input" placeholder="e.g. 50" min="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason</label>
+          <select class="form-select" id="distribute-reason">
+            <option>Member performance bonus</option>
+            <option>Club event prize</option>
+            <option>Weekly reward</option>
+            <option>Seasonal gift</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password (re-authentication)</label>
+          <input type="password" class="form-input" id="distribute-password" placeholder="Enter your password">
+          <div class="form-hint">Required for this action per token flow policy</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-distribute-confirm">Distribute Tokens</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gift Modal (DSC Lab) -->
+  <div class="modal-overlay" id="gift-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Gift to Club</div>
+        <button class="modal-close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Club</label>
+          <input type="text" class="form-input" id="gift-club" value="Collingwood Magpies" readonly>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount</label>
+          <input type="number" class="form-input" id="gift-amount" placeholder="e.g. 5000" min="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason</label>
+          <select class="form-select" id="gift-reason">
+            <option>Operational funding</option>
+            <option>Event sponsorship</option>
+            <option>Club development</option>
+            <option>Community program</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password (re-authentication)</label>
+          <input type="password" class="form-input" id="gift-password" placeholder="Enter your password">
+          <div class="form-hint">Required for this action per token flow policy</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-gift-confirm">Gift Tokens</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Burn Modal (DSC Lab) -->
+  <div class="modal-overlay" id="burn-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Burn Tokens</div>
+        <button class="modal-close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Amount</label>
+          <input type="number" class="form-input" id="burn-amount" placeholder="e.g. 1000" min="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason</label>
+          <select class="form-select" id="burn-reason">
+            <option>Excess capacity</option>
+            <option>Expired tokens</option>
+            <option>Correction</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password (re-authentication)</label>
+          <input type="password" class="form-input" id="burn-password" placeholder="Enter your password">
+          <div class="form-hint">This action is irreversible — tokens will be permanently removed</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-cancel">Cancel</button>
+        <button class="btn btn-danger" id="btn-burn-confirm">Burn Tokens</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
