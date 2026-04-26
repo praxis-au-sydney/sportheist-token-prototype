@@ -237,12 +237,10 @@ function renderTxList(selector, txs) {
 function renderMemberView() {
   const avail = walletState.member.available;
   const locked = walletState.member.locked;
-  const totalMinted = activeClub.minted;
 
   // Wallet balances
   $('#member-avail').textContent = fmt(avail);
   $('#member-locked').textContent = fmt(locked);
-  $('#member-minted').textContent = fmt(totalMinted);
 
   // Transactions
   renderTxList('#member-tx-list', TX_HISTORY.member);
@@ -262,8 +260,6 @@ function renderClubView() {
 
   // Wallet
   $('#club-balance').textContent = fmt(clubBalance);
-  $('#club-minted').textContent = '↑' + fmt(activeClub.minted);
-  $('#club-burned').textContent = '↓' + fmt(activeClub.burned);
 
   // Transactions
   renderTxList('#club-tx-list', TX_HISTORY.club);
