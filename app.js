@@ -262,8 +262,8 @@ function renderClubView() {
 
   // Wallet
   $('#club-balance').textContent = fmt(clubBalance);
-  $('#club-minted').textContent = fmt(activeClub.minted);
-  $('#club-burned').textContent = fmt(activeClub.burned);
+  $('#club-minted').textContent = '↑' + fmt(activeClub.minted);
+  $('#club-burned').textContent = '↓' + fmt(activeClub.burned);
 
   // Transactions
   renderTxList('#club-tx-list', TX_HISTORY.club);
@@ -275,8 +275,8 @@ function renderDscLabView() {
 
   // Wallet
   $('#dsclab-balance').textContent = fmt(dscBalance);
-  $('#dsclab-minted').textContent = fmt(activeClub.minted);
-  $('#dsclab-burned').textContent = fmt(activeClub.burned);
+  $('#dsclab-minted').textContent = '↑' + fmt(activeClub.minted);
+  $('#dsclab-burned').textContent = '↓' + fmt(activeClub.burned);
 
   // Transactions
   renderTxList('#dsclab-tx-list', TX_HISTORY.dscLab);
@@ -354,6 +354,7 @@ function initActivityHandlers() {
       activityState.like = 4;
     }
 
+    $('#activity-desc').value = '';
     closeModal('activity-modal');
     render();
   });
@@ -361,10 +362,9 @@ function initActivityHandlers() {
   // Outcome simulation buttons
   $('#btn-sim-complete').addEventListener('click', () => {
     if (!activityState.active) return;
-    // Voter tokens spent → DSC Lab
+    // Voter tokens spent → DSC Lab (conservation: member locked down, dscLab up by same amount)
     walletState.member.locked -= activityState.cost;
     activeClub.dscLab += activityState.cost;
-    activeClub.burned += Math.floor(activityState.cost * 0.1);
     addTx('member', {
       title: `${ACTIVITY_LABELS[activityState.type]} Completed`,
       meta: `Tokens spent → DSC Lab`,
@@ -433,8 +433,15 @@ function initModals() {
     });
   });
 
-  // Close buttons
+  // Close buttons (× icon)
   $$('.modal-close').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.closest('.modal-overlay').classList.remove('open');
+    });
+  });
+
+  // Cancel buttons
+  $$('.modal-cancel').forEach(btn => {
     btn.addEventListener('click', () => {
       btn.closest('.modal-overlay').classList.remove('open');
     });
@@ -477,6 +484,7 @@ function initModals() {
         type: 'in',
       });
     }
+    $('#purchase-amount').value = '';
     closeModal('purchase-modal');
     render();
     // Flash confirmation
@@ -493,31 +501,98 @@ function initModals() {
   // Re-auth flow for distribute
   $('#btn-distribute-confirm').addEventListener('click', () => {
     const password = $('#distribute-password').value;
+    const amount = parseInt($('#distribute-amount').value, 10);
+
     if (!password) {
       alert('Password required for this action');
       return;
     }
+    if (!amount || amount < 1) {
+      alert('Please enter a valid amount per member');
+      return;
+    }
+    if (activeClub.club < amount) {
+      alert(`Not enough club tokens. Need ${amount}, have ${activeClub.club}.`);
+      return;
+    }
+
+    // Transfer: Club → Member available
+    activeClub.club -= amount;
+    walletState.member.available += amount;
+
+    addTx('club', {
+      title: 'Distributed to Members',
+      meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Member reward',
+      amount: `-${amount}`,
+      type: 'out',
+    });
+    addTx('member', {
+      title: 'Club Distribution',
+      meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Received from club',
+      amount: `+${amount}`,
+      type: 'in',
+    });
+
+    $('#distribute-amount').value = '';
+    $('#distribute-password').value = '';
     closeModal('distribute-modal');
+    render();
+
     const badge = document.createElement('div');
-    badge.style.cssText = 'position:fixed;top:70px;right:24px;background:var(--indigo-600);color:white;z-index:100;padding:8px 14px;border-radius:8px;font-size:13px;animation:fadeOut 2s forwards';
-    badge.textContent = 'Tokens distributed to selected members';
+    badge.style.cssText = 'position:fixed;top:70px;right:24px;background:var(--indigo-600);color:white;z-index:100;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;animation:fadeOut 2s forwards';
+    badge.textContent = `Distributed ${amount} tokens to members`;
     document.body.appendChild(badge);
     setTimeout(() => badge.remove(), 2000);
   });
 
   // Gift modal (DSC Lab)
-  $('#btn-gift').addEventListener('click', () => openModal('gift-modal'));
+  $('#btn-gift').addEventListener('click', () => {
+    $('#gift-club').value = activeClub.name;
+    openModal('gift-modal');
+  });
 
   $('#btn-gift-confirm').addEventListener('click', () => {
     const password = $('#gift-password').value;
+    const amount = parseInt($('#gift-amount').value, 10);
+
     if (!password) {
       alert('Password required for this action');
       return;
     }
+    if (!amount || amount < 1) {
+      alert('Please enter a valid amount');
+      return;
+    }
+    if (activeClub.dscLab < amount) {
+      alert(`Not enough DSC Lab tokens. Need ${amount}, have ${activeClub.dscLab}.`);
+      return;
+    }
+
+    // Transfer: DSC Lab → Club
+    activeClub.dscLab -= amount;
+    activeClub.club += amount;
+
+    addTx('dscLab', {
+      title: 'Transferred to Club',
+      meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · ' + activeClub.name,
+      amount: `-${amount}`,
+      type: 'out',
+    });
+    addTx('club', {
+      title: 'DSC Lab Gift',
+      meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Gift from DSC Lab',
+      amount: `+${amount}`,
+      type: 'in',
+    });
+
+    $('#gift-amount').value = '';
+    $('#gift-password').value = '';
     closeModal('gift-modal');
+    render();
+
     const badge = document.createElement('div');
-    badge.style.cssText = 'position:fixed;top:70px;right:24px;background:var(--green-500);color:white;z-index:100;padding:8px 14px;border-radius:8px;font-size:13px;animation:fadeOut 2s forwards';
-    badge.textContent = 'Tokens gifted to club';
+    badge.style.cssText = 'position:fixed;top:70px;right:24px;background:var(--green-500);color:white;z-index:100;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;animation:fadeOut 2s forwards';
+    badge.textContent = `Gifted ${amount} tokens to ${activeClub.name}`;
     document.body.appendChild(badge);
     setTimeout(() => badge.remove(), 2000);
   });
@@ -527,14 +602,40 @@ function initModals() {
 
   $('#btn-burn-confirm').addEventListener('click', () => {
     const password = $('#burn-password').value;
+    const amount = parseInt($('#burn-amount').value, 10);
+
     if (!password) {
       alert('Password required for this action');
       return;
     }
+    if (!amount || amount < 1) {
+      alert('Please enter a valid amount');
+      return;
+    }
+    if (activeClub.dscLab < amount) {
+      alert(`Not enough DSC Lab tokens. Need ${amount}, have ${activeClub.dscLab}.`);
+      return;
+    }
+
+    // Burn: remove from DSC Lab, increment burned counter
+    activeClub.dscLab -= amount;
+    activeClub.burned += amount;
+
+    addTx('dscLab', {
+      title: 'Burned',
+      meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · ' + $('#burn-reason').value,
+      amount: `-${amount}`,
+      type: 'out',
+    });
+
+    $('#burn-amount').value = '';
+    $('#burn-password').value = '';
     closeModal('burn-modal');
+    render();
+
     const badge = document.createElement('div');
-    badge.style.cssText = 'position:fixed;top:70px;right:24px;background:var(--red-500);color:white;z-index:100;padding:8px 14px;border-radius:8px;font-size:13px;animation:fadeOut 2s forwards';
-    badge.textContent = 'Tokens burned permanently';
+    badge.style.cssText = 'position:fixed;top:70px;right:24px;background:var(--red-500);color:white;z-index:100;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;animation:fadeOut 2s forwards';
+    badge.textContent = `Burned ${amount} tokens permanently`;
     document.body.appendChild(badge);
     setTimeout(() => badge.remove(), 2000);
   });
