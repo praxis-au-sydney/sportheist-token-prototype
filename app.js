@@ -461,6 +461,7 @@ function initModals() {
     if (activeTab === 'member') {
       walletState.member.available += amount;
       walletState.member.available = Math.min(walletState.member.available, 100000); // cap for demo
+      activeClub.minted += amount;
       TX_HISTORY.member.unshift({
         id: Date.now(),
         title: 'Credit Top Up',
