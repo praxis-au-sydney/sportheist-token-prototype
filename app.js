@@ -887,11 +887,6 @@ function initModals() {
 
 // --- Club filter bar + TX selection + compensate bar wiring ---
 function initClubFilters() {
-  $('#btn-filter-toggle').addEventListener('click', () => {
-    const bar = $('#club-filter-bar');
-    bar.style.display = bar.style.display === 'none' ? 'block' : 'none';
-  });
-
   $('#filter-member').addEventListener('input', e => {
     activeFilters.member = e.target.value;
     updateFilterBadge();
