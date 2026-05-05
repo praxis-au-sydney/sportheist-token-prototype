@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(brew install *)",
+      "Bash(pdftotext \"/Users/donguyen/Documents/Code/Freelancer/sportheist/sportheist-token-prototype/docs/2. SportHeist Blockchain - High Level Architecture.pdf\" -)",
+      "Bash(pdftotext *)"
+    ]
+  }
+}

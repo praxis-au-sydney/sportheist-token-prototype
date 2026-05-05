@@ -1032,3 +1032,332 @@ body {
   letter-spacing: 0.04em;
   flex-shrink: 0;
 }
+
+/* --- Admin Config --- */
+
+/* Sub-nav */
+.admin-sub-nav {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 4px;
+}
+
+.admin-sub-nav-btn {
+  flex: 1;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-500);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.admin-sub-nav-btn:hover { color: var(--gray-700); }
+
+.admin-sub-nav-btn.active {
+  background: var(--indigo-600);
+  color: var(--white);
+}
+
+/* Admin card */
+.admin-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.admin-card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--gray-100);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.admin-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.admin-card-subtitle {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.admin-card-body {
+  padding: 20px;
+}
+
+.admin-card-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--gray-100);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.admin-save-confirm {
+  font-size: 12px;
+  color: var(--green-500);
+  font-weight: 500;
+}
+
+/* Settings field */
+.settings-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.settings-field:first-child { padding-top: 0; }
+.settings-field:last-child { border-bottom: none; padding-bottom: 0; }
+
+.sf-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.sf-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: 2px;
+}
+
+.sf-desc {
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-bottom: 4px;
+}
+
+.sf-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.sf-input {
+  width: 100px;
+  padding: 6px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-900);
+  background: var(--white);
+  transition: border-color .15s;
+  text-align: right;
+}
+
+.sf-input:focus {
+  outline: none;
+  border-color: var(--indigo-600);
+}
+
+.sf-unit {
+  font-size: 12px;
+  color: var(--gray-500);
+  flex-shrink: 0;
+}
+
+/* Impact preview */
+.impact-preview {
+  margin-top: 6px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  max-width: 440px;
+}
+
+.impact-warn {
+  background: var(--amber-50);
+  color: #92400e;
+}
+
+.impact-ok {
+  background: var(--green-50);
+  color: #065f46;
+}
+
+.impact-info {
+  background: #f0f9ff;
+  color: #0369a1;
+}
+
+/* Recovery filters */
+.recovery-filters {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--gray-100);
+  margin-bottom: 16px;
+}
+
+.rf-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.rf-row--3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.rf-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 120px;
+  flex: 1;
+}
+
+.rf-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.rf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rf-chip {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  color: var(--gray-700);
+  user-select: none;
+  transition: all .1s;
+}
+
+.rf-chip:hover { border-color: var(--indigo-600); color: var(--indigo-600); }
+.rf-chip.active { background: var(--indigo-600); color: white; border-color: var(--indigo-600); }
+
+/* Recovery results */
+.recovery-results {
+  /* shown after Find Members */
+}
+
+.rr-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.rr-summary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.rr-member-table {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.rr-member-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 13px;
+}
+
+.rr-member-row:last-child { border-bottom: none; }
+
+.rr-member-name { flex: 1; font-weight: 500; color: var(--gray-900); }
+.rr-member-tx-count { font-size: 12px; color: var(--gray-500); }
+.rr-member-credits { font-size: 12px; font-weight: 600; color: var(--gray-700); min-width: 110px; text-align: right; }
+
+/* Recovery action panel */
+.recovery-action-panel {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: var(--gray-50);
+}
+
+.rap-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.rap-row--fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: end;
+}
+
+.rap-toggle {
+  display: flex;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.rap-toggle-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--white);
+  border: none;
+  cursor: pointer;
+  color: var(--gray-700);
+  transition: all .15s;
+}
+
+.rap-toggle-btn.active {
+  background: var(--indigo-600);
+  color: var(--white);
+}
+
+.rap-source {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.rap-impact {
+  margin-bottom: 12px;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.rap-impact.rap-impact-warn { background: var(--amber-50); color: #92400e; }
+.rap-impact.rap-impact-ok   { background: var(--green-50); color: #065f46; }
+
+@media (max-width: 600px) {
+  .rf-row--3col { grid-template-columns: 1fr; }
+  .rap-row--fields { grid-template-columns: 1fr; }
+  .settings-field { flex-direction: column; gap: 8px; }
+}

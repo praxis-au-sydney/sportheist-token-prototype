@@ -23,6 +23,7 @@
     <button class="tab-btn active" data-tab="member">Member View</button>
     <button class="tab-btn" data-tab="club">Club View</button>
     <button class="tab-btn" data-tab="dsclab">DSC Lab View</button>
+    <button class="tab-btn" data-tab="admin">Admin Config</button>
   </nav>
 
   <!-- ======================= MAIN ======================= -->
@@ -215,9 +216,7 @@
             <div class="form-group">
               <label class="form-label">Activity type</label>
               <select class="form-select" id="activity-type">
-                <option value="idea">Idea (20 tokens)</option>
-                <option value="vote">Vote / Proposal (50 tokens)</option>
-                <option value="like">Like / Like-to-veto (10 tokens)</option>
+                <!-- populated dynamically from CLUB_CONFIG -->
               </select>
             </div>
             <div class="form-group">
@@ -300,6 +299,7 @@
           <span class="type-chip" data-type="idea">Idea</span>
           <span class="type-chip" data-type="like">Like</span>
           <span class="type-chip" data-type="refund">Refund</span>
+          <span class="type-chip" data-type="config_change">Config</span>
           <a href="#" class="filter-clear-link" id="filter-clear">Clear</a>
         </div>
       </div>
@@ -339,6 +339,162 @@
       <!-- Recent Transactions -->
       <div class="section-title">Recent Transactions</div>
       <div class="tx-list" id="dsclab-tx-list"></div>
+
+    </div>
+
+    <!-- ==================== ADMIN CONFIG VIEW ==================== -->
+    <div class="tab-panel" data-tab="admin">
+
+      <!-- Sub-nav -->
+      <div class="admin-sub-nav" id="admin-sub-nav">
+        <button class="admin-sub-nav-btn active" data-section="club-settings">Club Settings</button>
+        <button class="admin-sub-nav-btn" data-section="platform-settings">Platform Settings</button>
+        <button class="admin-sub-nav-btn" data-section="recovery">Recovery Actions</button>
+      </div>
+
+      <!-- ========== Club Settings Section ========== -->
+      <div class="admin-section" id="admin-club-settings">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <span class="admin-card-title" id="club-settings-club-name">Collingwood Magpies</span>
+            <span class="admin-card-subtitle">Activity costs — per BRD §5.9</span>
+          </div>
+          <div class="admin-card-body" id="club-settings-body">
+            <!-- rendered by JS -->
+          </div>
+          <div class="admin-card-footer">
+            <span class="admin-save-confirm" id="club-settings-saved"></span>
+            <button class="btn btn-primary" id="btn-save-club-settings">Save Changes</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== Platform Settings Section ========== -->
+      <div class="admin-section" id="admin-platform-settings" style="display:none;">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <span class="admin-card-title">Platform Settings</span>
+            <span class="admin-card-subtitle">Owned by DSC Lab Admin</span>
+          </div>
+          <div class="admin-card-body" id="platform-settings-body">
+            <!-- rendered by JS -->
+          </div>
+          <div class="admin-card-footer">
+            <span class="admin-save-confirm" id="platform-settings-saved"></span>
+            <button class="btn btn-primary" id="btn-save-platform-settings">Save Changes</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== Recovery Actions Section ========== -->
+      <div class="admin-section" id="admin-recovery" style="display:none;">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <span class="admin-card-title">Recovery Actions</span>
+            <span class="admin-card-subtitle">Find affected members by filtering transactions</span>
+          </div>
+          <div class="admin-card-body">
+
+            <!-- Filter Builder -->
+            <div class="recovery-filters" id="recovery-filters">
+              <div class="rf-row">
+                <div class="rf-group">
+                  <span class="rf-label">Activity Type</span>
+                  <div class="rf-chips" id="rf-type-chips">
+                    <span class="rf-chip active" data-type="all">All</span>
+                    <span class="rf-chip" data-type="vote">Vote</span>
+                    <span class="rf-chip" data-type="like">Like</span>
+                    <span class="rf-chip" data-type="idea">Idea</span>
+                    <span class="rf-chip" data-type="distribute">Distribute</span>
+                    <span class="rf-chip" data-type="purchase">Purchase</span>
+                    <span class="rf-chip" data-type="gift">Gift</span>
+                    <span class="rf-chip" data-type="refund">Refund</span>
+                  </div>
+                </div>
+              </div>
+              <div class="rf-row rf-row--3col">
+                <div class="rf-group">
+                  <span class="rf-label">Date From</span>
+                  <input type="date" class="form-input" id="rf-date-from">
+                </div>
+                <div class="rf-group">
+                  <span class="rf-label">Date To</span>
+                  <input type="date" class="form-input" id="rf-date-to">
+                </div>
+                <div class="rf-group">
+                  <span class="rf-label">Min Credits</span>
+                  <input type="number" class="form-input" id="rf-amount-min" placeholder="0" min="0">
+                </div>
+              </div>
+              <div class="rf-row rf-row--3col">
+                <div class="rf-group">
+                  <span class="rf-label">Error Flag</span>
+                  <select class="form-select" id="rf-error">
+                    <option value="">Any</option>
+                    <option value="insufficient_credits">Insufficient Credits</option>
+                    <option value="failed_tx">Failed Transaction</option>
+                    <option value="duplicate_charge">Duplicate Charge</option>
+                  </select>
+                </div>
+                <div class="rf-group">
+                  <span class="rf-label">Reason Code</span>
+                  <select class="form-select" id="rf-reason">
+                    <option value="">Any</option>
+                    <option value="compensation">Compensation</option>
+                    <option value="reward">Reward</option>
+                    <option value="purchase">Purchase</option>
+                    <option value="system_adjustment">System Adjustment</option>
+                  </select>
+                </div>
+                <div class="rf-group">
+                  <span class="rf-label">Context ID (Proposal / Idea)</span>
+                  <input type="text" class="form-input" id="rf-context-id" placeholder="#88">
+                </div>
+              </div>
+              <button class="btn btn-primary" id="btn-find-members">Find Members</button>
+            </div>
+
+            <!-- Member Preview (hidden until Find Members clicked) -->
+            <div class="recovery-results" id="recovery-results" style="display:none;">
+              <div class="rr-header">
+                <span id="rr-summary">0 members · from 0 transactions</span>
+                <a href="#" class="filter-clear-link" id="rr-clear">Clear</a>
+              </div>
+              <div class="rr-member-table" id="rr-member-table">
+                <!-- rendered by JS -->
+              </div>
+
+              <!-- Action Panel -->
+              <div class="recovery-action-panel" id="recovery-action-panel">
+                <div class="rap-row">
+                  <div class="rap-toggle">
+                    <button class="rap-toggle-btn active" data-mode="distribute" id="rap-mode-distribute">Distribute</button>
+                    <button class="rap-toggle-btn" data-mode="refund" id="rap-mode-refund">Refund</button>
+                  </div>
+                  <span class="rap-source" id="rap-source">Source: Club Wallet</span>
+                </div>
+                <div class="rap-row rap-row--fields">
+                  <div class="rf-group">
+                    <span class="rf-label">Amount per member</span>
+                    <input type="number" class="form-input" id="rap-amount" placeholder="50" min="1">
+                  </div>
+                  <div class="rf-group">
+                    <span class="rf-label">Reason</span>
+                    <select class="form-select" id="rap-reason"></select>
+                  </div>
+                  <div class="rf-group">
+                    <span class="rf-label">Password</span>
+                    <input type="password" class="form-input" id="rap-password" placeholder="Re-authenticate">
+                  </div>
+                </div>
+                <div class="rap-impact" id="rap-impact"></div>
+                <button class="btn btn-primary" id="btn-recovery-confirm">Confirm Distribute</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
 
     </div>
 

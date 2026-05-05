@@ -20,6 +20,19 @@ const REASON_CODES = {
   refund: ['Incorrect charge', 'Proposal cancelled', 'System error', 'Vote reversal', 'Other'],
 };
 
+const CLUB_CONFIG = {
+  collingwood: { voteCost: 50, likeCost: 10, ideaCost: 100 },
+  gsw:        { voteCost: 40, likeCost: 5,  ideaCost: 80  },
+  lakers:     { voteCost: 30, likeCost: 5,  ideaCost: 60  },
+};
+
+const PLATFORM_CONFIG = {
+  tokenPriceAUD: 0.10,
+  expiryDays: 365,
+  distributionCap: 500,
+  seasonEndDate: '2026-12-31',
+};
+
 const MEMBERS = {
   collingwood: [
     { id: 'm1', name: 'Alex Johnson', available: 1200 },
@@ -68,6 +81,9 @@ const TX_HISTORY = {
     { id: 8,  title: 'Distributed to Members', meta: '05 Apr 2026 · Weekly reward · 5 members',    amount: '-1800', amountNum: 1800, type: 'out', activityType: 'distribute', memberId: null, memberName: null,         memberIds: ['m1', 'm2', 'm3', 'm4', 'm5'], date: '2026-04-05' },
     { id: 9,  title: 'Vote: Support',          meta: '03 Apr 2026 · Proposal #82 · Tom Gallagher', amount: '-50',   amountNum: 50,   type: 'out', activityType: 'vote',       memberId: 'm5', memberName: 'Tom Gallagher',  memberIds: null,                        date: '2026-04-03' },
     { id: 10, title: 'Credit Purchase',        meta: '01 Apr 2026 · Stripe · Alex Johnson',        amount: '+200',  amountNum: 200,  type: 'in',  activityType: 'purchase',   memberId: 'm1', memberName: 'Alex Johnson',   memberIds: null,                        date: '2026-04-01' },
+    { id: 11, title: 'Vote Failed',            meta: '28 Mar 2026 · Proposal #76 · Sarah Chen',     amount: '-50',   amountNum: 50,   type: 'out', activityType: 'vote',       memberId: 'm2', memberName: 'Sarah Chen',     memberIds: null,  date: '2026-03-28', errorFlag: 'insufficient_credits', reasonCode: 'system_adjustment' },
+    { id: 12, title: 'Duplicate Charge',       meta: '25 Mar 2026 · Like #77 · Priya Nair',         amount: '-10',   amountNum: 10,   type: 'out', activityType: 'like',       memberId: 'm4', memberName: 'Priya Nair',     memberIds: null,  date: '2026-03-25', errorFlag: 'duplicate_charge', reasonCode: 'compensation' },
+    { id: 13, title: 'Distribute Failed',      meta: '20 Mar 2026 · System error · 2 members',     amount: '-400',  amountNum: 400,  type: 'out', activityType: 'distribute', memberId: null, memberName: null,         memberIds: ['m3', 'm5'], date: '2026-03-20', errorFlag: 'failed_tx', reasonCode: 'system_adjustment' },
   ],
   dscLab: [
     { id: 1, title: 'Received from Spend', meta: '14 Apr 2026 · Activities', amount: '+1200', type: 'in' },
@@ -95,6 +111,10 @@ let selectedTxIds = new Set();
 let activeFilters = { member: '', types: [], dateFrom: '', dateTo: '', amountMin: '', amountMax: '' };
 let distributeMode = 'distribute';
 let memberOwedAmounts = {}; // populated during compensate flow: memberId → tokens owed
+let activeAdminSection = 'club-settings';
+let recoveryFilters = { types: [], dateFrom: '', dateTo: '', amountMin: '', error: '', reason: '', contextId: '' };
+let derivedMembers = [];
+let recoveryMode = 'distribute';
 
 // --- Helpers ---
 function $(sel) { return document.querySelector(sel); }
@@ -121,12 +141,13 @@ function renderVisibility() {
   const isDscLab = activeTab === 'dsclab';
   const isClub = activeTab === 'club';
   const isMember = activeTab === 'member';
+  const isAdmin = activeTab === 'admin';
 
   // Ecosystem diagram: DSC Lab only
   $('#ecosystem-diagram').style.display = isDscLab ? 'block' : 'none';
 
-  // Club picker: Club + DSC Lab
-  $('#club-picker-wrap').style.display = (isClub || isDscLab) ? 'block' : 'none';
+  // Club picker: Club + DSC Lab + Admin
+  $('#club-picker-wrap').style.display = (isClub || isDscLab || isAdmin) ? 'block' : 'none';
 
   // Totals strip: Club + DSC Lab
   $('#totals-strip').style.display = (isClub || isDscLab) ? 'grid' : 'none';
@@ -166,6 +187,7 @@ function initClubPicker() {
       renderClubView();
       renderDscLabView();
       updateCompensateBar();
+      if (activeTab === 'admin') renderAdminView();
     });
   });
 }
@@ -410,8 +432,21 @@ function closeModal(id) {
 }
 
 // --- Activity panel (Member View) ---
-const ACTIVITY_COSTS = { idea: 20, vote: 50, like: 10 };
 const ACTIVITY_LABELS = { idea: 'Idea', vote: 'Proposal', like: 'Like to Veto' };
+
+function getActivityCosts() {
+  const cfg = CLUB_CONFIG[activeClub.id] || CLUB_CONFIG.collingwood;
+  return { idea: cfg.ideaCost, vote: cfg.voteCost, like: cfg.likeCost };
+}
+
+function populateActivityModal() {
+  const costs = getActivityCosts();
+  $('#activity-type').innerHTML = [
+    { value: 'idea', label: `Idea (${costs.idea} tokens)` },
+    { value: 'vote', label: `Vote / Proposal (${costs.vote} tokens)` },
+    { value: 'like', label: `Like / Like-to-veto (${costs.like} tokens)` },
+  ].map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+}
 
 function renderActivityPanel() {
   const panel = $('#activity-panel');
@@ -457,12 +492,15 @@ function renderActivityPanel() {
 }
 
 function initActivityHandlers() {
-  $('#btn-start-activity').addEventListener('click', () => openModal('activity-modal'));
+  $('#btn-start-activity').addEventListener('click', () => {
+    populateActivityModal();
+    openModal('activity-modal');
+  });
 
   $('#btn-start-activity-confirm').addEventListener('click', () => {
     const type = $('#activity-type').value;
     const desc = $('#activity-desc').value;
-    const cost = ACTIVITY_COSTS[type] || 0;
+    const cost = getActivityCosts()[type] || 0;
 
     if (walletState.member.available < cost) {
       alert(`Not enough available tokens. Need ${cost}, have ${walletState.member.available}.`);
@@ -1118,6 +1156,516 @@ function initClubFilters() {
   });
 }
 
+// --- Admin Config View ---
+
+function renderAdminView() {
+  renderAdminSubNav();
+
+  // Show/hide sections
+  const sections = {
+    'club-settings': '#admin-club-settings',
+    'platform-settings': '#admin-platform-settings',
+    'recovery': '#admin-recovery',
+  };
+  Object.entries(sections).forEach(([key, sel]) => {
+    $(sel).style.display = key === activeAdminSection ? 'block' : 'none';
+  });
+
+  if (activeAdminSection === 'club-settings') renderClubSettings();
+  if (activeAdminSection === 'platform-settings') renderPlatformSettings();
+  if (activeAdminSection === 'recovery') renderRecoveryView();
+}
+
+function renderAdminSubNav() {
+  $$('#admin-sub-nav .admin-sub-nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.section === activeAdminSection);
+  });
+}
+
+// --- Club Settings ---
+function renderClubSettings() {
+  const cfg = CLUB_CONFIG[activeClub.id] || CLUB_CONFIG.collingwood;
+  $('#club-settings-club-name').textContent = activeClub.name;
+
+  const fields = [
+    { key: 'voteCost', label: 'Vote Cost', desc: 'Tokens locked when a member votes on a proposal' },
+    { key: 'likeCost',  label: 'Like Cost',  desc: 'Tokens locked when a member likes/vetoes' },
+    { key: 'ideaCost',  label: 'Idea Cost',  desc: 'Tokens locked when a member submits an idea (sponsor + voter)' },
+  ];
+
+  $('#club-settings-body').innerHTML = fields.map(f => {
+    const val = cfg[f.key];
+    const impact = calcCostImpact(val, f.key);
+    return `
+      <div class="settings-field">
+        <div class="sf-main">
+          <span class="sf-label">${f.label}</span>
+          <span class="sf-desc">${f.desc}</span>
+          <div class="sf-input-wrap">
+            <input type="number" class="sf-input" data-config-key="${f.key}" value="${val}" min="1" max="1000">
+            <span class="sf-unit">credits</span>
+          </div>
+          <div class="impact-preview ${impact.css}">${impact.text}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  $('#club-settings-saved').textContent = '';
+}
+
+function calcCostImpact(newCost, key) {
+  const members = MEMBERS[activeClub.id] || [];
+  if (members.length === 0) return { css: 'impact-ok', text: '✓ No members in this club' };
+
+  const blocked = members.filter(m => m.available < newCost);
+  if (blocked.length === 0) return { css: 'impact-ok', text: '✓ All members can afford this' };
+
+  const names = blocked.slice(0, 3).map(m => m.name).join(', ');
+  const suffix = blocked.length > 3 ? ` and ${blocked.length - 3} more` : '';
+  return {
+    css: 'impact-warn',
+    text: `⚠ ${blocked.length} member${blocked.length !== 1 ? 's' : ''} (${names}${suffix}) ha${blocked.length === 1 ? 's' : 've'} < ${newCost} credits and cannot ${key === 'voteCost' ? 'vote' : key === 'likeCost' ? 'like' : 'submit ideas'}`,
+  };
+}
+
+// --- Platform Settings ---
+function renderPlatformSettings() {
+  const cfg = PLATFORM_CONFIG;
+  const fields = [
+    {
+      key: 'tokenPriceAUD', label: 'Token Price', unit: 'AUD per token',
+      desc: 'Fiat price members pay via Stripe per token',
+      impact: () => {
+        const p = cfg.tokenPriceAUD;
+        return { css: 'impact-info', text: `ℹ 100 tokens = $${(100 * p).toFixed(2)} · 500 tokens = $${(500 * p).toFixed(2)} · 1,000 tokens = $${(1000 * p).toFixed(2)}` };
+      },
+    },
+    {
+      key: 'expiryDays', label: 'Token Expiry', unit: 'days after season end',
+      desc: 'Days before tokens expire after the season ends',
+      impact: () => {
+        const d = cfg.expiryDays;
+        const end = new Date(cfg.seasonEndDate);
+        const expiry = new Date(end.getTime() + d * 86400000);
+        return { css: 'impact-info', text: `ℹ Expiry deadline: ${expiry.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}` };
+      },
+    },
+    {
+      key: 'distributionCap', label: 'Distribution Cap', unit: 'tokens per event',
+      desc: 'Maximum tokens the club can distribute in a single event',
+      impact: () => {
+        const cap = cfg.distributionCap;
+        const maxHist = TX_HISTORY.club
+          .filter(tx => tx.activityType === 'distribute')
+          .reduce((max, tx) => Math.max(max, tx.amountNum || 0), 0);
+        if (maxHist === 0) return { css: 'impact-ok', text: '✓ No prior distributions to compare' };
+        if (cap >= maxHist) return { css: 'impact-ok', text: `✓ Largest prior distribution was ${maxHist} tokens` };
+        return { css: 'impact-warn', text: `⚠ Largest prior distribution was ${maxHist} tokens — this cap would block it` };
+      },
+    },
+    {
+      key: 'seasonEndDate', label: 'Season End Date', unit: '',
+      desc: 'Date the current season ends. Expiry is calculated from this date.',
+      impact: () => {
+        return { css: 'impact-info', text: `ℹ Expiry deadline: tokens expire ${cfg.expiryDays} days after this date` };
+      },
+    },
+  ];
+
+  $('#platform-settings-body').innerHTML = fields.map(f => {
+    const val = cfg[f.key];
+    const impact = f.impact();
+    return `
+      <div class="settings-field">
+        <div class="sf-main">
+          <span class="sf-label">${f.label}</span>
+          <span class="sf-desc">${f.desc}</span>
+          <div class="sf-input-wrap">
+            <input type="${f.key === 'seasonEndDate' ? 'date' : 'number'}"
+                   class="sf-input"
+                   data-config-key="${f.key}"
+                   value="${val}"
+                   ${f.key === 'tokenPriceAUD' ? 'step="0.01" min="0.01"' : ''}
+                   ${f.key === 'expiryDays' ? 'min="1" max="3650"' : ''}
+                   ${f.key === 'distributionCap' ? 'min="1"' : ''}>
+            ${f.unit ? `<span class="sf-unit">${f.unit}</span>` : ''}
+          </div>
+          <div class="impact-preview ${impact.css}" id="impact-${f.key}">${impact.text}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  $('#platform-settings-saved').textContent = '';
+}
+
+function updatePlatformImpacts() {
+  const cfg = PLATFORM_CONFIG;
+  const impacts = {
+    tokenPriceAUD: () => {
+      const p = cfg.tokenPriceAUD;
+      return { css: 'impact-info', text: `ℹ 100 tokens = $${(100 * p).toFixed(2)} · 500 tokens = $${(500 * p).toFixed(2)} · 1,000 tokens = $${(1000 * p).toFixed(2)}` };
+    },
+    expiryDays: () => {
+      const d = cfg.expiryDays;
+      const end = new Date(cfg.seasonEndDate);
+      const expiry = new Date(end.getTime() + d * 86400000);
+      return { css: 'impact-info', text: `ℹ Expiry deadline: ${expiry.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}` };
+    },
+    distributionCap: () => {
+      const cap = cfg.distributionCap;
+      const maxHist = TX_HISTORY.club
+        .filter(tx => tx.activityType === 'distribute')
+        .reduce((max, tx) => Math.max(max, tx.amountNum || 0), 0);
+      if (maxHist === 0) return { css: 'impact-ok', text: '✓ No prior distributions to compare' };
+      if (cap >= maxHist) return { css: 'impact-ok', text: `✓ Largest prior distribution was ${maxHist} tokens` };
+      return { css: 'impact-warn', text: `⚠ Largest prior distribution was ${maxHist} tokens — this cap would block it` };
+    },
+    seasonEndDate: () => {
+      return { css: 'impact-info', text: `ℹ Expiry deadline: tokens expire ${cfg.expiryDays} days after this date` };
+    },
+  };
+  Object.entries(impacts).forEach(([key, fn]) => {
+    const el = $('#impact-' + key);
+    if (!el) return;
+    const impact = fn();
+    el.className = 'impact-preview ' + impact.css;
+    el.textContent = impact.text;
+  });
+}
+
+// --- Recovery Actions ---
+function renderRecoveryView() {
+  // Update chip active states
+  $$('#rf-type-chips .rf-chip').forEach(c => {
+    const type = c.dataset.type;
+    if (type === 'all') c.classList.toggle('active', recoveryFilters.types.length === 0);
+    else c.classList.toggle('active', recoveryFilters.types.includes(type));
+  });
+
+  // Set input values
+  const els = {
+    '#rf-date-from': recoveryFilters.dateFrom,
+    '#rf-date-to': recoveryFilters.dateTo,
+    '#rf-amount-min': recoveryFilters.amountMin,
+    '#rf-error': recoveryFilters.error,
+    '#rf-reason': recoveryFilters.reason,
+    '#rf-context-id': recoveryFilters.contextId,
+  };
+  Object.entries(els).forEach(([sel, val]) => { const el = $(sel); if (el && el !== document.activeElement) el.value = val; });
+
+  // Member results
+  if (derivedMembers.length > 0) {
+    renderRecoveryResults();
+  } else {
+    $('#recovery-results').style.display = 'none';
+  }
+}
+
+function renderRecoveryResults() {
+  $('#recovery-results').style.display = 'block';
+
+  // Summary
+  const totalTx = derivedMembers.reduce((s, m) => s + m.txCount, 0);
+  $('#rr-summary').textContent = `${derivedMembers.length} member${derivedMembers.length !== 1 ? 's' : ''} · from ${totalTx} transaction${totalTx !== 1 ? 's' : ''}`;
+
+  // Member table
+  $('#rr-member-table').innerHTML = derivedMembers.map(m => `
+    <div class="rr-member-row">
+      <span class="rr-member-name">${m.name}</span>
+      <span class="rr-member-tx-count">${m.txCount} transaction${m.txCount !== 1 ? 's' : ''}</span>
+      <span class="rr-member-credits">${fmt(m.totalCredits)} credits affected</span>
+    </div>
+  `).join('');
+
+  // Action panel
+  renderRecoveryActionPanel();
+}
+
+function renderRecoveryActionPanel() {
+  // Mode toggle
+  $$('.rap-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === recoveryMode));
+
+  // Source wallet
+  const sourceLabel = recoveryMode === 'distribute' ? 'Club Wallet' : 'DSC Lab Wallet';
+  const sourceBalance = recoveryMode === 'distribute' ? activeClub.club : activeClub.dscLab;
+  $('#rap-source').textContent = `Source: ${sourceLabel} (${fmt(sourceBalance)} available)`;
+
+  // Reasons
+  const reasons = recoveryMode === 'distribute' ? REASON_CODES.distribute : REASON_CODES.refund;
+  const reasonSel = $('#rap-reason');
+  if (reasonSel) reasonSel.innerHTML = reasons.map(r => `<option value="${r}">${r}</option>`).join('');
+
+  // Button text
+  $('#btn-recovery-confirm').textContent = recoveryMode === 'distribute' ? 'Confirm Distribute' : 'Confirm Refund';
+
+  // Impact preview
+  const amount = parseInt($('#rap-amount').value, 10) || 0;
+  const total = derivedMembers.length * amount;
+  const impactEl = $('#rap-impact');
+  if (amount > 0 && derivedMembers.length > 0) {
+    if (total > sourceBalance) {
+      impactEl.className = 'rap-impact rap-impact-warn';
+      impactEl.textContent = `⚠ Total: ${fmt(total)} credits needed · ${sourceLabel} has ${fmt(sourceBalance)} — insufficient`;
+    } else {
+      impactEl.className = 'rap-impact rap-impact-ok';
+      impactEl.textContent = `✓ Total: ${fmt(total)} credits · ${sourceLabel} has ${fmt(sourceBalance)} · ${fmt(sourceBalance - total)} remaining after`;
+    }
+  } else {
+    impactEl.className = 'rap-impact';
+    impactEl.textContent = '';
+  }
+}
+
+// --- Recovery: filter transactions and derive members ---
+function findAffectedMembers() {
+  const f = recoveryFilters;
+  const filtered = TX_HISTORY.club.filter(tx => {
+    if (f.types.length > 0 && (!tx.activityType || !f.types.includes(tx.activityType))) return false;
+    if (f.dateFrom && tx.date && tx.date < f.dateFrom) return false;
+    if (f.dateTo && tx.date && tx.date > f.dateTo) return false;
+    const minAmt = f.amountMin !== '' ? parseInt(f.amountMin, 10) : null;
+    if (minAmt !== null && tx.amountNum !== undefined && tx.amountNum < minAmt) return false;
+    if (f.error && tx.errorFlag !== f.error) return false;
+    if (f.reason && tx.reasonCode !== f.reason) return false;
+    if (f.contextId) {
+      const cid = f.contextId.toLowerCase().replace('#', '');
+      if (!tx.meta || !tx.meta.toLowerCase().includes(cid)) return false;
+    }
+    return true;
+  });
+
+  // Derive unique members
+  const memberMap = {};
+  filtered.forEach(tx => {
+    if (tx.memberId) {
+      if (!memberMap[tx.memberId]) memberMap[tx.memberId] = { id: tx.memberId, name: tx.memberName || tx.memberId, txCount: 0, totalCredits: 0 };
+      memberMap[tx.memberId].txCount++;
+      memberMap[tx.memberId].totalCredits += Math.abs(tx.amountNum || 0);
+    }
+    if (tx.memberIds) {
+      tx.memberIds.forEach(id => {
+        if (!memberMap[id]) {
+          const m = (MEMBERS[activeClub.id] || []).find(mb => mb.id === id);
+          memberMap[id] = { id, name: m ? m.name : id, txCount: 0, totalCredits: 0 };
+        }
+        memberMap[id].txCount++;
+        memberMap[id].totalCredits += Math.abs((tx.amountNum || 0) / tx.memberIds.length);
+      });
+    }
+  });
+
+  derivedMembers = Object.values(memberMap);
+  renderRecoveryView();
+}
+
+// --- Admin event handlers ---
+function initAdminHandlers() {
+  // Sub-nav switching
+  $('#admin-sub-nav').addEventListener('click', e => {
+    const btn = e.target.closest('.admin-sub-nav-btn');
+    if (!btn) return;
+    activeAdminSection = btn.dataset.section;
+    renderAdminView();
+  });
+
+  // Club Settings: live impact calculation on input
+  $('#club-settings-body').addEventListener('input', e => {
+    const input = e.target.closest('.sf-input');
+    if (!input) return;
+    const key = input.dataset.configKey;
+    const val = parseInt(input.value, 10) || 0;
+    const impact = calcCostImpact(val, key);
+    const field = input.closest('.settings-field');
+    const preview = field.querySelector('.impact-preview');
+    if (preview) {
+      preview.className = 'impact-preview ' + impact.css;
+      preview.textContent = impact.text;
+    }
+  });
+
+  // Save Club Settings
+  $('#btn-save-club-settings').addEventListener('click', () => {
+    const inputs = $$('#club-settings-body .sf-input');
+    inputs.forEach(inp => {
+      const key = inp.dataset.configKey;
+      const val = parseInt(inp.value, 10) || 0;
+      CLUB_CONFIG[activeClub.id][key] = val;
+    });
+    addTx('club', {
+      title: 'Config Change',
+      meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Activity costs updated',
+      amount: '—',
+      type: 'offchain',
+      activityType: 'config_change',
+    });
+    const el = $('#club-settings-saved');
+    el.textContent = 'Saved · ' + new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+    setTimeout(() => { el.textContent = ''; }, 3000);
+    renderClubView();
+  });
+
+  // Platform Settings: live impact on input
+  $('#platform-settings-body').addEventListener('input', e => {
+    const input = e.target.closest('.sf-input');
+    if (!input) return;
+    const key = input.dataset.configKey;
+    if (key === 'tokenPriceAUD') PLATFORM_CONFIG.tokenPriceAUD = parseFloat(input.value) || 0;
+    if (key === 'expiryDays') PLATFORM_CONFIG.expiryDays = parseInt(input.value, 10) || 0;
+    if (key === 'distributionCap') PLATFORM_CONFIG.distributionCap = parseInt(input.value, 10) || 0;
+    if (key === 'seasonEndDate') PLATFORM_CONFIG.seasonEndDate = input.value;
+    updatePlatformImpacts();
+  });
+
+  // Save Platform Settings
+  $('#btn-save-platform-settings').addEventListener('click', () => {
+    const el = $('#platform-settings-saved');
+    el.textContent = 'Saved · ' + new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+    setTimeout(() => { el.textContent = ''; }, 3000);
+  });
+
+  // Recovery: type chips
+  $('#rf-type-chips').addEventListener('click', e => {
+    const chip = e.target.closest('.rf-chip');
+    if (!chip) return;
+    const type = chip.dataset.type;
+    if (type === 'all') {
+      recoveryFilters.types = [];
+    } else {
+      const idx = recoveryFilters.types.indexOf(type);
+      if (idx === -1) recoveryFilters.types.push(type);
+      else recoveryFilters.types.splice(idx, 1);
+    }
+    renderRecoveryView();
+  });
+
+  // Recovery: filter inputs
+  ['#rf-date-from', '#rf-date-to', '#rf-amount-min'].forEach(sel => {
+    const el = $(sel);
+    if (el) {
+      el.addEventListener('input', () => {
+        const key = sel === '#rf-date-from' ? 'dateFrom' : sel === '#rf-date-to' ? 'dateTo' : 'amountMin';
+        recoveryFilters[key] = el.value;
+      });
+    }
+  });
+
+  $('#rf-error').addEventListener('change', e => { recoveryFilters.error = e.target.value; });
+  $('#rf-reason').addEventListener('change', e => { recoveryFilters.reason = e.target.value; });
+  $('#rf-context-id').addEventListener('input', e => { recoveryFilters.contextId = e.target.value; });
+
+  // Find Members
+  $('#btn-find-members').addEventListener('click', () => findAffectedMembers());
+
+  // Clear results
+  $('#rr-clear').addEventListener('click', e => {
+    e.preventDefault();
+    derivedMembers = [];
+    renderRecoveryView();
+  });
+
+  // Recovery mode toggle
+  $('#recovery-action-panel').addEventListener('click', e => {
+    const btn = e.target.closest('.rap-toggle-btn');
+    if (!btn) return;
+    recoveryMode = btn.dataset.mode;
+    $('#rap-amount').value = '';
+    renderRecoveryActionPanel();
+  });
+
+  // Amount input → live impact
+  $('#rap-amount').addEventListener('input', renderRecoveryActionPanel);
+
+  // Confirm distribute/refund
+  $('#btn-recovery-confirm').addEventListener('click', () => {
+    const amount = parseInt($('#rap-amount').value, 10);
+    const password = $('#rap-password').value;
+    const reason = $('#rap-reason').value;
+
+    if (derivedMembers.length === 0) { alert('No members to act on. Run Find Members first.'); return; }
+    if (!password) { alert('Password required for this action.'); return; }
+    if (!amount || amount < 1) { alert('Please enter a valid amount per member.'); return; }
+
+    const total = derivedMembers.length * amount;
+    const isDistribute = recoveryMode === 'distribute';
+    const sourceLabel = isDistribute ? 'Club Wallet' : 'DSC Lab Wallet';
+    const sourceBalance = isDistribute ? activeClub.club : activeClub.dscLab;
+
+    if (sourceBalance < total) {
+      alert(`Not enough tokens. Need ${total}, ${sourceLabel} has ${sourceBalance}.`);
+      return;
+    }
+
+    // Execute transfer
+    const today = new Date().toISOString().slice(0, 10);
+    const dateLabel = new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
+    const batchId = Date.now();
+
+    if (isDistribute) {
+      activeClub.club -= total;
+      walletState.member.available += total;
+      (MEMBERS[activeClub.id] || []).forEach(m => {
+        const found = derivedMembers.find(dm => dm.id === m.id);
+        if (found) m.available += amount;
+      });
+    } else {
+      activeClub.dscLab -= total;
+      walletState.member.available += total;
+      (MEMBERS[activeClub.id] || []).forEach(m => {
+        const found = derivedMembers.find(dm => dm.id === m.id);
+        if (found) m.available += amount;
+      });
+    }
+
+    addTx('club', {
+      title: isDistribute ? 'Recovery: Distributed' : 'Recovery: Refunded',
+      meta: dateLabel + ` · ${derivedMembers.length} member${derivedMembers.length !== 1 ? 's' : ''} · ${reason}`,
+      amount: `-${total}`,
+      amountNum: total,
+      type: 'out',
+      activityType: isDistribute ? 'distribute' : 'refund',
+      memberIds: derivedMembers.map(m => m.id),
+      date: today,
+      batchId,
+    });
+
+    if (!isDistribute) {
+      addTx('dscLab', {
+        title: 'Recovery Refund Sent',
+        meta: dateLabel + ` · ${derivedMembers.length} member${derivedMembers.length !== 1 ? 's' : ''}`,
+        amount: `-${total}`,
+        type: 'out',
+      });
+    }
+
+    addTx('member', {
+      title: isDistribute ? 'Admin Distribution' : 'Admin Refund',
+      meta: dateLabel + ` · ${reason}`,
+      amount: `+${amount}`,
+      type: 'in',
+      txType: isDistribute ? 'distribute' : 'refund',
+    });
+
+    // Reset
+    const actedCount = derivedMembers.length;
+    derivedMembers = [];
+    $('#rap-amount').value = '';
+    $('#rap-password').value = '';
+
+    render();
+    renderAdminView();
+
+    const badge = document.createElement('div');
+    badge.style.cssText = 'position:fixed;top:70px;right:24px;background:var(--indigo-600);color:white;z-index:100;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;animation:fadeOut 2s forwards';
+    badge.textContent = isDistribute
+      ? `Distributed ${amount} tokens to ${actedCount} members`
+      : `Refunded ${amount} tokens to ${actedCount} members`;
+    document.body.appendChild(badge);
+    setTimeout(() => badge.remove(), 2000);
+  });
+}
+
 // --- Master render ---
 function render() {
   renderVisibility();
@@ -1128,6 +1676,7 @@ function render() {
   renderClubView();
   renderDscLabView();
   renderActivityPanel();
+  if (activeTab === 'admin') renderAdminView();
 }
 
 // --- Init ---
@@ -1137,6 +1686,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initModals();
   initActivityHandlers();
   initClubFilters();
+  initAdminHandlers();
   render();
 
   // Add fadeOut keyframe
