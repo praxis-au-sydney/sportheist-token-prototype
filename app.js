@@ -5,7 +5,7 @@
 'use strict';
 
 // --- Mock data ---
-// Conservation check: minted − burned = club + dscLab + members
+// Conservation check: issued − burned = club + dscLab + members
 // where members = membersAvail + membersLocked (see renderTotals)
 const CLUBS = [
   { id: 'collingwood', name: 'Collingwood Magpies', club: 12400, dscLab: 46570, minted: 65000, burned: 2000 },
@@ -46,12 +46,16 @@ const MEMBERS = {
 
 const TX_HISTORY = {
   member: [
-    { id: 1, title: 'Credit Top Up', meta: '14 Apr 2026 · Stripe', amount: '+200', type: 'in' },
-    { id: 2, title: 'Vote: Support', meta: '12 Apr 2026 · Proposal #88', amount: '-50', type: 'out', locked: false },
-    { id: 3, title: 'Idea Lapsed', meta: '10 Apr 2026 · Idea #23', amount: '+50', type: 'in', note: 'Voter tokens returned' },
-    { id: 4, title: 'Like became Vote', meta: '08 Apr 2026 · Proposal #85', amount: '-25', type: 'out', locked: true },
-    { id: 5, title: 'Credit Top Up', meta: '05 Apr 2026 · Stripe', amount: '+100', type: 'in' },
-    { id: 6, title: 'Proposal Completed', meta: '03 Apr 2026 · Proposal #82', amount: '-50', type: 'out', locked: false },
+    { id: 1,  title: 'Credit Top Up',    meta: '20 Apr 2026 · Stripe',                        amount: '+200', type: 'in',     txType: 'topup'    },
+    { id: 2,  title: 'Club Distribution',meta: '18 Apr 2026 · Weekly reward',                 amount: '+150', type: 'in',     txType: 'distribute' },
+    { id: 3,  title: 'Vote Locked',      meta: '16 Apr 2026 · Proposal #90',                  amount: '-50',  type: 'locked', txType: 'vote',    note: 'In progress · tokens locked' },
+    { id: 4,  title: 'Vote Completed',   meta: '14 Apr 2026 · Proposal #88',                  amount: '-50',  type: 'out',    txType: 'vote',    onchain: true, note: 'Spent on-chain → DSC Lab' },
+    { id: 5,  title: 'Like Locked',      meta: '12 Apr 2026 · Post #47',                      amount: '-10',  type: 'locked', txType: 'like',    note: 'In progress · tokens locked' },
+    { id: 6,  title: 'Idea Lapsed',      meta: '10 Apr 2026 · Idea #23',                      amount: '+10',  type: 'in',     txType: 'lapsed',  note: '10 voter tokens returned · 10 sponsor tokens forfeited' },
+    { id: 7,  title: 'Refund',           meta: '08 Apr 2026 · Incorrect charge · Club Admin', amount: '+50',  type: 'in',     txType: 'refund'   },
+    { id: 8,  title: 'Vote Vetoed',      meta: '06 Apr 2026 · Proposal #85',                  amount: '+50',  type: 'in',     txType: 'vote',    note: 'Tokens unlocked and returned' },
+    { id: 9,  title: 'Credit Top Up',    meta: '05 Apr 2026 · Stripe',                        amount: '+100', type: 'in',     txType: 'topup'    },
+    { id: 10, title: 'Idea Cancelled',   meta: '03 Apr 2026 · Idea #20',                      amount: '-20',  type: 'out',    txType: 'idea',    onchain: true, note: 'Forfeited on-chain → DSC Lab' },
   ],
   club: [
     { id: 1,  title: 'DSC Lab Gift',           meta: '14 Apr 2026 · Operational funding',            amount: '+5000', amountNum: 5000, type: 'in',  activityType: 'gift',      memberId: null, memberName: null,         memberIds: null,                        date: '2026-04-14' },
@@ -90,6 +94,7 @@ let selectedMemberIds = new Set();
 let selectedTxIds = new Set();
 let activeFilters = { member: '', types: [], dateFrom: '', dateTo: '', amountMin: '', amountMax: '' };
 let distributeMode = 'distribute';
+let memberOwedAmounts = {}; // populated during compensate flow: memberId → tokens owed
 
 // --- Helpers ---
 function $(sel) { return document.querySelector(sel); }
@@ -208,7 +213,7 @@ function renderClubPicker() {
 }
 
 // --- Totals strip ---
-// Conservation: minted − burned = club + dscLab + membersAvail + membersLocked
+// Conservation: issued − burned = club + dscLab + membersAvail + membersLocked
 const CLUB_MEMBERS = {
   collingwood: { avail: 3210, locked: 820 },
   gsw: { avail: 2800, locked: 720 },
@@ -270,8 +275,18 @@ function renderDiagram() {
 }
 
 // --- Transaction rendering ---
+const TX_TYPE_LABELS = {
+  topup:    'Top-Up',
+  distribute: 'Received',
+  vote:     'Vote',
+  like:     'Like',
+  idea:     'Idea',
+  lapsed:   'Lapsed',
+  refund:   'Refund',
+};
+
 function txIcon(type) {
-  const map = { in: 'in', out: 'out', locked: 'locked', offchain: 'offchain' };
+  const map = { in: 'in', out: 'out', locked: 'locked', offchain: 'offchain', onchain: 'onchain' };
   return map[type] || 'offchain';
 }
 
@@ -281,16 +296,25 @@ function renderTxList(selector, txs) {
     list.innerHTML = '<div class="empty-state">No transactions yet</div>';
     return;
   }
-  list.innerHTML = txs.map(tx => `
-    <div class="tx-item">
-      <div class="tx-icon ${txIcon(tx.type)}">${tx.type === 'in' ? '↑' : tx.type === 'out' ? '↓' : '○'}</div>
-      <div class="tx-info">
-        <div class="tx-title">${tx.title}</div>
-        <div class="tx-meta">${tx.meta}${tx.note ? ' · ' + tx.note : ''}</div>
+  list.innerHTML = txs.map(tx => {
+    const iconClass = tx.onchain ? 'onchain' : txIcon(tx.type);
+    const iconSymbol = tx.onchain ? '⛓' : (tx.type === 'in' ? '↑' : tx.type === 'locked' ? '○' : '↓');
+    const amountClass = tx.amount.startsWith('+') ? 'positive' : tx.type === 'locked' ? 'amber' : 'negative';
+    const badge = tx.txType ? `<span class="tx-type-badge tx-type-${tx.txType}">${TX_TYPE_LABELS[tx.txType] || tx.txType}</span>` : '';
+    const chainBadge = tx.onchain ? '<span class="tx-onchain-badge">On-chain</span>' : '';
+    const badgeRow = (badge || chainBadge) ? `<div class="tx-badges">${badge}${chainBadge}</div>` : '';
+    return `
+      <div class="tx-item">
+        <div class="tx-icon ${iconClass}">${iconSymbol}</div>
+        <div class="tx-info">
+          <div class="tx-title">${tx.title}</div>
+          ${badgeRow}
+          <div class="tx-meta">${tx.meta}${tx.note ? ' · ' + tx.note : ''}</div>
+        </div>
+        <div class="tx-amount ${amountClass}">${tx.amount}</div>
       </div>
-      <div class="tx-amount ${tx.amount.startsWith('+') ? 'positive' : 'negative'}">${tx.amount}</div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 // --- Member View ---
@@ -320,12 +344,55 @@ function renderClubView() {
   renderClubTxList();
 }
 
+// --- DSC Lab: All-Clubs Overview ---
+function renderClubOverview() {
+  const wrap = $('#club-overview-table');
+  if (!wrap) return;
+
+  wrap.innerHTML = CLUBS.map(c => {
+    const m = CLUB_MEMBERS[c.id] || { avail: 0, locked: 0 };
+    const membersTotal = m.avail + m.locked;
+    const isActive = c.id === activeClub.id;
+    return `
+      <div class="club-overview-row${isActive ? ' co-active' : ''}">
+        <div class="club-overview-name">
+          ${c.name}
+          ${isActive ? '<span class="co-selected-badge">Selected</span>' : ''}
+        </div>
+        <div class="club-overview-stats">
+          <div class="co-stat">
+            <span class="co-stat-label">DSC Lab</span>
+            <span class="co-stat-value co-purple">${fmt(c.dscLab)}</span>
+          </div>
+          <div class="co-stat">
+            <span class="co-stat-label">Club Wallet</span>
+            <span class="co-stat-value co-green">${fmt(c.club)}</span>
+          </div>
+          <div class="co-stat">
+            <span class="co-stat-label">Members</span>
+            <span class="co-stat-value">${fmt(membersTotal)}</span>
+          </div>
+          <div class="co-stat">
+            <span class="co-stat-label">Issued</span>
+            <span class="co-stat-value co-up">↑${fmt(c.minted)}</span>
+          </div>
+          <div class="co-stat">
+            <span class="co-stat-label">Burned</span>
+            <span class="co-stat-value co-down">↓${fmt(c.burned)}</span>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm co-gift-btn" data-club-id="${c.id}">Gift</button>
+      </div>
+    `;
+  }).join('');
+}
+
 // --- DSC Lab View ---
 function renderDscLabView() {
-  const dscBalance = activeClub.dscLab;
+  renderClubOverview();
 
-  // Wallet
-  $('#dsclab-balance').textContent = fmt(dscBalance);
+  // Wallet (selected club)
+  $('#dsclab-balance').textContent = fmt(activeClub.dscLab);
   $('#dsclab-minted').textContent = '↑' + fmt(activeClub.minted);
   $('#dsclab-burned').textContent = '↓' + fmt(activeClub.burned);
 
@@ -421,7 +488,8 @@ function initActivityHandlers() {
       meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + (desc ? ' · ' + desc.slice(0, 30) : ''),
       amount: `-${cost}`,
       type: 'locked',
-      note: 'Tokens moved to Locked',
+      txType: type,
+      note: 'In progress · tokens locked',
     });
 
     $('#activity-desc').value = '';
@@ -444,21 +512,21 @@ function initActivityHandlers() {
     if (action === 'complete') {
       walletState.member.locked -= a.cost;
       activeClub.dscLab += a.cost;
-      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Completed`, meta: 'Tokens spent → DSC Lab', amount: `-${a.cost}`, type: 'out' });
+      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Completed`, meta: 'Tokens spent → DSC Lab', amount: `-${a.cost}`, type: 'out', txType: a.type, onchain: true, note: 'Spent on-chain → DSC Lab' });
     } else if (action === 'vetoed') {
       walletState.member.available += a.cost;
       walletState.member.locked -= a.cost;
-      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Vetoed`, meta: 'Tokens unlocked', amount: `+${a.cost}`, type: 'in' });
+      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Vetoed`, meta: 'Tokens unlocked and returned', amount: `+${a.cost}`, type: 'in', txType: a.type });
     } else if (action === 'lapsed') {
       const half = Math.floor(a.cost / 2);
       walletState.member.available += a.cost - half;
       walletState.member.locked -= a.cost;
       activeClub.dscLab += half;
-      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Lapsed`, meta: `${half} sponsor tokens forfeited`, amount: `+${a.cost - half}`, type: 'in' });
+      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Lapsed`, meta: `${half} sponsor tokens forfeited`, amount: `+${a.cost - half}`, type: 'in', txType: 'lapsed', note: `${a.cost - half} voter tokens returned · ${half} forfeited` });
     } else if (action === 'cancelled') {
       walletState.member.locked -= a.cost;
       activeClub.dscLab += a.cost;
-      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Cancelled`, meta: 'Sponsor forfeit → DSC Lab', amount: `-${a.cost}`, type: 'out' });
+      addTx('member', { title: `${ACTIVITY_LABELS[a.type]} Cancelled`, meta: 'Sponsor forfeit → DSC Lab', amount: `-${a.cost}`, type: 'out', txType: a.type, onchain: true, note: 'Forfeited on-chain → DSC Lab' });
     }
 
     activities.splice(idx, 1);
@@ -555,6 +623,32 @@ function updateCompensateBar() {
   bar.style.display = 'flex';
 }
 
+// --- Compensation amount suggestion ---
+function calcSuggestedCompensation(selectedIds) {
+  const perMember = {};
+
+  TX_HISTORY.club.forEach(tx => {
+    if (!selectedIds.has(tx.id) || !tx.amountNum || tx.type !== 'out') return;
+    if (tx.memberId) {
+      perMember[tx.memberId] = (perMember[tx.memberId] || 0) + tx.amountNum;
+    } else if (tx.memberIds && tx.memberIds.length > 0) {
+      const each = Math.round(tx.amountNum / tx.memberIds.length);
+      tx.memberIds.forEach(id => { perMember[id] = (perMember[id] || 0) + each; });
+    }
+  });
+
+  const amounts = Object.values(perMember);
+  if (amounts.length === 0) return { amount: null, note: null, perMember: {} };
+
+  const allSame = amounts.every(a => a === amounts[0]);
+  const suggested = allSame ? amounts[0] : Math.max(...amounts);
+  const note = allSame
+    ? 'Matches original charge for each member'
+    : `Amounts vary by member — using maximum · adjust if needed`;
+
+  return { amount: suggested, note, perMember };
+}
+
 // --- Open distribute/compensate modal ---
 function openDistributeModal(options = {}) {
   const mode = options.mode || 'distribute';
@@ -567,7 +661,22 @@ function openDistributeModal(options = {}) {
   $('#distribute-reason').innerHTML = reasons.map(r => `<option value="${r}">${r}</option>`).join('');
 
   selectedMemberIds = new Set(options.preselectedIds || []);
+  memberOwedAmounts = options.perMember || {};
   $('#member-search').value = '';
+
+  const amountInput = $('#distribute-amount');
+  const amountHint = $('#distribute-amount-hint');
+  if (mode === 'compensate' && options.amount) {
+    amountInput.value = options.amount;
+    if (amountHint) {
+      amountHint.textContent = `Auto-suggested from selected transactions · ${options.note || ''}`;
+      amountHint.style.display = 'block';
+    }
+  } else {
+    amountInput.value = '';
+    if (amountHint) amountHint.style.display = 'none';
+  }
+
   renderMemberTable();
   updateDistributeSummary();
   openModal('distribute-modal');
@@ -586,13 +695,18 @@ function renderMemberTable(filter = '') {
     return;
   }
 
-  wrap.innerHTML = filtered.map(m => `
-    <div class="member-row${selectedMemberIds.has(m.id) ? ' selected' : ''}" data-member-id="${m.id}">
-      <input type="checkbox" ${selectedMemberIds.has(m.id) ? 'checked' : ''} style="cursor:pointer;flex-shrink:0;" tabindex="-1">
-      <span class="member-row-name">${m.name}</span>
-      <span class="member-row-balance">${fmt(m.available)} avail</span>
-    </div>
-  `).join('');
+  wrap.innerHTML = filtered.map(m => {
+    const owed = memberOwedAmounts[m.id];
+    const owedTag = owed ? `<span class="member-row-owed">Owed ${fmt(owed)}</span>` : '';
+    return `
+      <div class="member-row${selectedMemberIds.has(m.id) ? ' selected' : ''}" data-member-id="${m.id}">
+        <input type="checkbox" ${selectedMemberIds.has(m.id) ? 'checked' : ''} style="cursor:pointer;flex-shrink:0;" tabindex="-1">
+        <span class="member-row-name">${m.name}</span>
+        ${owedTag}
+        <span class="member-row-balance">${fmt(m.available)} avail</span>
+      </div>
+    `;
+  }).join('');
 }
 
 function updateDistributeSummary() {
@@ -652,6 +766,7 @@ function initModals() {
         meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Stripe',
         amount: '+' + amount,
         type: 'in',
+        txType: 'topup',
       });
     } else if (activeTab === 'club') {
       walletState.club.balance += amount;
@@ -758,10 +873,11 @@ function initModals() {
       date: today,
     });
     addTx('member', {
-      title: isCompensate ? 'Compensation Received' : 'Club Distribution',
+      title: isCompensate ? 'Refund' : 'Club Distribution',
       meta: dateLabel + (isCompensate ? ' · Refund from club' : ' · Received from club'),
       amount: `+${amount}`,
       type: 'in',
+      txType: isCompensate ? 'refund' : 'distribute',
     });
 
     selectedMemberIds = new Set();
@@ -779,9 +895,23 @@ function initModals() {
     setTimeout(() => badge.remove(), 2000);
   });
 
-  // Gift modal (DSC Lab)
+  // Gift modal (DSC Lab) — from action row
   $('#btn-gift').addEventListener('click', () => {
     $('#gift-club').value = activeClub.name;
+    openModal('gift-modal');
+  });
+
+  // Gift buttons inside the all-clubs overview table
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.co-gift-btn');
+    if (!btn) return;
+    const club = CLUBS.find(c => c.id === btn.dataset.clubId);
+    if (!club) return;
+    activeClub = club;
+    renderClubPicker();
+    renderTotals();
+    renderDscLabView();
+    $('#gift-club').value = club.name;
     openModal('gift-modal');
   });
 
@@ -977,7 +1107,14 @@ function initClubFilters() {
       alert('No members identified in the selected transactions. Select rows with member activity.');
       return;
     }
-    openDistributeModal({ mode: 'compensate', preselectedIds: [...uniqueMembers] });
+    const suggestion = calcSuggestedCompensation(selectedTxIds);
+    openDistributeModal({
+      mode: 'compensate',
+      preselectedIds: [...uniqueMembers],
+      amount: suggestion.amount,
+      note: suggestion.note,
+      perMember: suggestion.perMember,
+    });
   });
 }
 

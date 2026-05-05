@@ -746,6 +746,15 @@ body {
 
 .member-row-name { flex: 1; font-size: 13px; color: var(--gray-900); }
 .member-row-balance { font-size: 12px; color: var(--gray-500); }
+.member-row-owed {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--indigo-600);
+  background: #e0e7ff;
+  padding: 1px 7px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
 
 .distribute-summary {
   display: flex;
@@ -902,3 +911,124 @@ body {
   cursor: pointer;
 }
 .compensate-clear-link:hover { color: white; }
+
+/* --- On-chain tx icon --- */
+.tx-icon.onchain { background: #e0e7ff; color: var(--indigo-600); }
+
+/* --- Tx amount: locked (amber) --- */
+.tx-amount.amber { color: var(--amber-500); }
+
+/* --- Tx type badges --- */
+.tx-badges {
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+.tx-type-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.tx-type-topup     { background: #dbeafe; color: #1d4ed8; }
+.tx-type-distribute{ background: #d1fae5; color: #065f46; }
+.tx-type-vote      { background: #ede9fe; color: #6d28d9; }
+.tx-type-like      { background: #fce7f3; color: #be185d; }
+.tx-type-idea      { background: #fef3c7; color: #92400e; }
+.tx-type-lapsed    { background: #fee2e2; color: #991b1b; }
+.tx-type-refund    { background: #e0f2fe; color: #0369a1; }
+
+/* --- DSC Lab: All-Clubs Overview Table --- */
+.club-overview-table {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.club-overview-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.club-overview-row:last-child { border-bottom: none; }
+.club-overview-row.co-active { background: #f5f3ff; }
+
+.club-overview-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+  min-width: 170px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.co-selected-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #ede9fe;
+  color: var(--purple-600);
+}
+
+.club-overview-stats {
+  flex: 1;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.co-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 64px;
+}
+
+.co-stat-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.co-stat-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.co-stat-value.co-purple { color: var(--purple-600); }
+.co-stat-value.co-green  { color: var(--green-500); }
+.co-stat-value.co-up     { color: var(--green-500); }
+.co-stat-value.co-down   { color: var(--red-500); }
+
+@media (max-width: 600px) {
+  .club-overview-row { flex-wrap: wrap; }
+  .club-overview-name { min-width: unset; width: 100%; }
+}
+
+.tx-onchain-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #e0e7ff;
+  color: var(--indigo-600);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}

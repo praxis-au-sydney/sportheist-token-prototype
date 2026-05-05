@@ -62,12 +62,13 @@
         <text x="720" y="113" text-anchor="middle" font-size="10" fill="#d97706" font-weight="600">Locked</text>
         <text x="720" y="128" text-anchor="middle" font-size="13" fill="#111827" font-weight="700" id="diagram-locked">820</text>
 
-        <!-- Arrows: Stripe -> DSC Lab (mint) -->
-        <line x1="120" y1="55" x2="215" y2="90" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrowIndigo)"/>
-        <text x="158" y="70" font-size="9" fill="#6366f1">MINT</text>
+        <!-- Arrows: Member buys -> Member Wallet (Issue) -->
+        <line x1="120" y1="55" x2="645" y2="80" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrowIndigo)"/>
+        <text x="370" y="55" font-size="9" fill="#6366f1">Issue</text>
 
+        <!-- Arrow: Club buys -> Club Wallet (Issue) -->
         <line x1="120" y1="165" x2="455" y2="110" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4,3"/>
-        <text x="275" y="135" font-size="9" fill="#6366f1">MINT</text>
+        <text x="275" y="135" font-size="9" fill="#6366f1">Issue</text>
 
         <!-- Arrows: DSC Lab -> Club (gift) -->
         <line x1="350" y1="110" x2="455" y2="110" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
@@ -309,7 +310,11 @@
     <!-- ==================== DSC LAB VIEW ==================== -->
     <div class="tab-panel" data-tab="dsclab">
 
-      <!-- Wallet Card -->
+      <!-- All-Clubs Overview -->
+      <div class="section-title">All Club Wallets</div>
+      <div class="club-overview-table" id="club-overview-table"></div>
+
+      <!-- Wallet Card (selected club) -->
       <div class="wallet-card">
         <div class="wallet-card-header">
           <div class="wallet-card-title">DSC Lab Wallet <span style="font-weight:400;font-size:11px;color:#6b7280;">(per club)</span></div>
@@ -321,7 +326,7 @@
           </div>
         </div>
         <div class="minted-burned-row">
-          <div class="mb-stat"><strong class="up" id="dsclab-minted">↑65,000</strong> total minted</div>
+          <div class="mb-stat"><strong class="up" id="dsclab-minted">↑65,000</strong> credits issued</div>
           <div class="mb-stat"><strong class="down" id="dsclab-burned">↓2,000</strong> total burned</div>
         </div>
       </div>
@@ -384,6 +389,7 @@
         <div class="form-group">
           <label class="form-label">Amount per member</label>
           <input type="number" class="form-input" id="distribute-amount" placeholder="e.g. 50" min="1">
+          <div class="form-hint" id="distribute-amount-hint" style="display:none;"></div>
         </div>
         <div class="form-group">
           <label class="form-label">Reason</label>
