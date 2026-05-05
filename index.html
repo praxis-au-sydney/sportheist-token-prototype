@@ -252,11 +252,6 @@
             <div class="wallet-balance-label">Balance</div>
           </div>
         </div>
-        <div class="funding-sources">
-          <span class="funding-chip purchase">Funded by: Purchase</span>
-          <span class="funding-chip gift">DSC Lab Gift</span>
-          <span class="funding-chip donation">Donation on expiry</span>
-        </div>
       </div>
 
       <div class="action-row">
@@ -266,6 +261,50 @@
 
       <!-- Transaction History -->
       <div class="section-title">Transaction History</div>
+      <div class="filter-bar-header">
+        <div class="filter-bar-left">
+          <button class="btn btn-outline btn-sm" id="btn-filter-toggle">Filter <span class="filter-count-badge" id="filter-active-count" style="display:none;"></span></button>
+          <span class="filter-result-count" id="filter-result-count"></span>
+        </div>
+        <label class="filter-select-all">
+          <input type="checkbox" id="select-all-tx"> Select all
+        </label>
+      </div>
+      <div class="filter-bar" id="club-filter-bar" style="display:none;">
+        <div class="filter-row">
+          <div class="filter-group">
+            <span class="filter-label">Member</span>
+            <input type="text" class="form-input" id="filter-member" placeholder="Name…" autocomplete="off">
+          </div>
+          <div class="filter-group">
+            <span class="filter-label">From</span>
+            <input type="date" class="form-input" id="filter-date-from">
+          </div>
+          <div class="filter-group">
+            <span class="filter-label">To</span>
+            <input type="date" class="form-input" id="filter-date-to">
+          </div>
+          <div class="filter-group filter-group--sm">
+            <span class="filter-label">Min credits</span>
+            <input type="number" class="form-input" id="filter-amount-min" placeholder="0" min="0">
+          </div>
+          <div class="filter-group filter-group--sm">
+            <span class="filter-label">Max credits</span>
+            <input type="number" class="form-input" id="filter-amount-max" placeholder="∞" min="0">
+          </div>
+        </div>
+        <div class="filter-types" id="filter-type-chips">
+          <span class="type-chip active" data-type="all">All</span>
+          <span class="type-chip" data-type="purchase">Purchase</span>
+          <span class="type-chip" data-type="distribute">Distribute</span>
+          <span class="type-chip" data-type="gift">Gift</span>
+          <span class="type-chip" data-type="vote">Vote</span>
+          <span class="type-chip" data-type="idea">Idea</span>
+          <span class="type-chip" data-type="like">Like</span>
+          <span class="type-chip" data-type="refund">Refund</span>
+          <a href="#" class="filter-clear-link" id="filter-clear">Clear</a>
+        </div>
+      </div>
       <div class="tx-list" id="club-tx-list"></div>
 
     </div>
@@ -328,19 +367,22 @@
 
   <!-- Distribute Modal (Club) -->
   <div class="modal-overlay" id="distribute-modal">
-    <div class="modal">
+    <div class="modal modal--wide">
       <div class="modal-header">
         <div class="modal-title">Distribute to Members</div>
         <button class="modal-close">×</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">Select Members</label>
-          <select class="form-select">
-            <option>All active members</option>
-            <option>Members with locked balance</option>
-            <option>Selected members (multi-select)...</option>
-          </select>
+          <label class="form-label">Search Members</label>
+          <input type="text" class="form-input" id="member-search" placeholder="Search by name…" autocomplete="off">
+        </div>
+        <div class="member-table-wrap" id="member-table-wrap">
+          <!-- populated by renderMemberTable() -->
+        </div>
+        <div class="distribute-summary">
+          <span id="distribute-selected-count">0 members selected</span>
+          <span>Total: <strong id="distribute-total">0</strong> tokens</span>
         </div>
         <div class="form-group">
           <label class="form-label">Amount per member</label>
@@ -348,13 +390,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Reason</label>
-          <select class="form-select" id="distribute-reason">
-            <option>Member performance bonus</option>
-            <option>Club event prize</option>
-            <option>Weekly reward</option>
-            <option>Seasonal gift</option>
-            <option>Other</option>
-          </select>
+          <select class="form-select" id="distribute-reason"></select>
         </div>
         <div class="form-group">
           <label class="form-label">Password (re-authentication)</label>
@@ -439,6 +475,15 @@
         <button class="btn btn-outline modal-cancel">Cancel</button>
         <button class="btn btn-danger" id="btn-burn-confirm">Burn Tokens</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Compensate Bar -->
+  <div class="compensate-bar" id="compensate-bar" style="display:none;">
+    <span id="compensate-summary">0 transactions selected · 0 unique members</span>
+    <div class="compensate-bar-actions">
+      <a href="#" id="compensate-clear" class="compensate-clear-link">Clear</a>
+      <button class="btn btn-primary" id="btn-compensate">Compensate Selected</button>
     </div>
   </div>
 

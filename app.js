@@ -17,6 +17,31 @@ const REASON_CODES = {
   distribute: ['Member performance bonus', 'Club event prize', 'Weekly reward', 'Seasonal gift', 'Other'],
   gift: ['Operational funding', 'Event sponsorship', 'Club development', 'Community program', 'Other'],
   burn: ['Excess capacity', 'Expired tokens', 'Correction', 'Other'],
+  refund: ['Incorrect charge', 'Proposal cancelled', 'System error', 'Vote reversal', 'Other'],
+};
+
+const MEMBERS = {
+  collingwood: [
+    { id: 'm1', name: 'Alex Johnson', available: 1200 },
+    { id: 'm2', name: 'Sarah Chen', available: 850 },
+    { id: 'm3', name: 'Marcus Webb', available: 620 },
+    { id: 'm4', name: 'Priya Nair', available: 300 },
+    { id: 'm5', name: 'Tom Gallagher', available: 240 },
+  ],
+  gsw: [
+    { id: 'm1', name: 'Jordan Davis', available: 980 },
+    { id: 'm2', name: 'Kenji Tanaka', available: 750 },
+    { id: 'm3', name: 'Aisha Williams', available: 540 },
+    { id: 'm4', name: 'Diego Herrera', available: 330 },
+    { id: 'm5', name: 'Emma Thompson', available: 200 },
+  ],
+  lakers: [
+    { id: 'm1', name: 'Caleb Brown', available: 820 },
+    { id: 'm2', name: 'Nina Park', available: 640 },
+    { id: 'm3', name: 'Ryan O\'Brien', available: 480 },
+    { id: 'm4', name: 'Leila Hassan', available: 280 },
+    { id: 'm5', name: 'Felix Müller', available: 180 },
+  ],
 };
 
 const TX_HISTORY = {
@@ -29,11 +54,16 @@ const TX_HISTORY = {
     { id: 6, title: 'Proposal Completed', meta: '03 Apr 2026 · Proposal #82', amount: '-50', type: 'out', locked: false },
   ],
   club: [
-    { id: 1, title: 'DSC Lab Gift', meta: '14 Apr 2026 · Gift reason', amount: '+5000', type: 'in' },
-    { id: 2, title: 'Distributed to Members', meta: '12 Apr 2026 · 8 members', amount: '-3200', type: 'out' },
-    { id: 3, title: 'DSC Lab Gift', meta: '10 Apr 2026 · Gift reason', amount: '+2000', type: 'in' },
-    { id: 4, title: 'Credit Purchase', meta: '08 Apr 2026 · Stripe', amount: '+5000', type: 'in' },
-    { id: 5, title: 'Distributed to Members', meta: '05 Apr 2026 · 5 members', amount: '-1800', type: 'out' },
+    { id: 1,  title: 'DSC Lab Gift',           meta: '14 Apr 2026 · Operational funding',            amount: '+5000', amountNum: 5000, type: 'in',  activityType: 'gift',      memberId: null, memberName: null,         memberIds: null,                        date: '2026-04-14' },
+    { id: 2,  title: 'Distributed to Members', meta: '12 Apr 2026 · Performance bonus · 3 members', amount: '-3200', amountNum: 3200, type: 'out', activityType: 'distribute', memberId: null, memberName: null,         memberIds: ['m1', 'm2', 'm3'],          date: '2026-04-12' },
+    { id: 3,  title: 'Vote: Support',          meta: '11 Apr 2026 · Proposal #88 · Alex Johnson',   amount: '-50',   amountNum: 50,   type: 'out', activityType: 'vote',       memberId: 'm1', memberName: 'Alex Johnson',   memberIds: null,                        date: '2026-04-11' },
+    { id: 4,  title: 'DSC Lab Gift',           meta: '10 Apr 2026 · Event sponsorship',             amount: '+2000', amountNum: 2000, type: 'in',  activityType: 'gift',      memberId: null, memberName: null,         memberIds: null,                        date: '2026-04-10' },
+    { id: 5,  title: 'Credit Purchase',        meta: '08 Apr 2026 · Stripe · Sarah Chen',           amount: '+500',  amountNum: 500,  type: 'in',  activityType: 'purchase',   memberId: 'm2', memberName: 'Sarah Chen',     memberIds: null,                        date: '2026-04-08' },
+    { id: 6,  title: 'Idea Started',           meta: '07 Apr 2026 · Idea #45 · Marcus Webb',        amount: '-20',   amountNum: 20,   type: 'out', activityType: 'idea',       memberId: 'm3', memberName: 'Marcus Webb',    memberIds: null,                        date: '2026-04-07' },
+    { id: 7,  title: 'Like to Veto',           meta: '06 Apr 2026 · Proposal #85 · Priya Nair',     amount: '-10',   amountNum: 10,   type: 'out', activityType: 'like',       memberId: 'm4', memberName: 'Priya Nair',     memberIds: null,                        date: '2026-04-06' },
+    { id: 8,  title: 'Distributed to Members', meta: '05 Apr 2026 · Weekly reward · 5 members',    amount: '-1800', amountNum: 1800, type: 'out', activityType: 'distribute', memberId: null, memberName: null,         memberIds: ['m1', 'm2', 'm3', 'm4', 'm5'], date: '2026-04-05' },
+    { id: 9,  title: 'Vote: Support',          meta: '03 Apr 2026 · Proposal #82 · Tom Gallagher', amount: '-50',   amountNum: 50,   type: 'out', activityType: 'vote',       memberId: 'm5', memberName: 'Tom Gallagher',  memberIds: null,                        date: '2026-04-03' },
+    { id: 10, title: 'Credit Purchase',        meta: '01 Apr 2026 · Stripe · Alex Johnson',        amount: '+200',  amountNum: 200,  type: 'in',  activityType: 'purchase',   memberId: 'm1', memberName: 'Alex Johnson',   memberIds: null,                        date: '2026-04-01' },
   ],
   dscLab: [
     { id: 1, title: 'Received from Spend', meta: '14 Apr 2026 · Activities', amount: '+1200', type: 'in' },
@@ -56,6 +86,10 @@ let activities = [];
 // --- State ---
 let activeClub = CLUBS[0];
 let activeTab = 'member';
+let selectedMemberIds = new Set();
+let selectedTxIds = new Set();
+let activeFilters = { member: '', types: [], dateFrom: '', dateTo: '', amountMin: '', amountMax: '' };
+let distributeMode = 'distribute';
 
 // --- Helpers ---
 function $(sel) { return document.querySelector(sel); }
@@ -72,7 +106,7 @@ function initTabs() {
       activeTab = btn.dataset.tab;
       $$('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
       $$('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === activeTab));
-      renderVisibility();
+      render();
     });
   });
 }
@@ -121,10 +155,12 @@ function initClubPicker() {
       walletState.member.locked = m.locked;
       dropdown.classList.remove('open');
       btn.classList.remove('open');
+      selectedTxIds = new Set();
       renderClubPicker();
       renderTotals();
       renderClubView();
       renderDscLabView();
+      updateCompensateBar();
     });
   });
 }
@@ -132,27 +168,41 @@ function initClubPicker() {
 function renderClubPicker() {
   const btn = $('#club-picker-btn');
   btn.querySelector('.club-name').textContent = activeClub.name;
-
   const dots = btn.querySelector('.club-dots');
-  dots.innerHTML = `
-    <span>Club: ${fmt(activeClub.club)}</span>
-    <span>·</span>
-    <span>DSC Lab: ${fmt(activeClub.dscLab)}</span>
-    <span>·</span>
-    <span style="color:var(--green-500)">↑${fmt(activeClub.minted)}</span>
-    <span>/</span>
-    <span style="color:var(--red-500)">↓${fmt(activeClub.burned)}</span>
-  `;
+  const isClub = activeTab === 'club';
+  const memberCount = (MEMBERS[activeClub.id] || []).length;
+
+  if (isClub) {
+    dots.innerHTML = `<span>Club Wallet: ${fmt(activeClub.club)}</span><span> · </span><span>${memberCount} members</span>`;
+  } else {
+    dots.innerHTML = `
+      <span>Club: ${fmt(activeClub.club)}</span>
+      <span> · </span>
+      <span>DSC Lab: ${fmt(activeClub.dscLab)}</span>
+      <span> · </span>
+      <span style="color:var(--green-500)">↑${fmt(activeClub.minted)}</span>
+      <span>/</span>
+      <span style="color:var(--red-500)">↓${fmt(activeClub.burned)}</span>
+    `;
+  }
 
   $$('.club-option').forEach(opt => {
     const club = CLUBS.find(c => c.id === opt.dataset.id);
     if (!club) return;
+    const count = (MEMBERS[club.id] || []).length;
     opt.querySelector('.club-option-name').textContent = club.name;
-    opt.querySelector('.club-option-meta').innerHTML = `
-      <span>Club: <strong>${fmt(club.club)}</strong></span>
-      <span>DSC Lab: <strong>${fmt(club.dscLab)}</strong></span>
-      <span><span class="up">↑${fmt(club.minted)}</span> / <span class="down">↓${fmt(club.burned)}</span></span>
-    `;
+    if (isClub) {
+      opt.querySelector('.club-option-meta').innerHTML = `
+        <span>Club Wallet: <strong>${fmt(club.club)}</strong></span>
+        <span>${count} members</span>
+      `;
+    } else {
+      opt.querySelector('.club-option-meta').innerHTML = `
+        <span>Club: <strong>${fmt(club.club)}</strong></span>
+        <span>DSC Lab: <strong>${fmt(club.dscLab)}</strong></span>
+        <span><span class="up">↑${fmt(club.minted)}</span> / <span class="down">↓${fmt(club.burned)}</span></span>
+      `;
+    }
     opt.classList.toggle('selected', club.id === activeClub.id);
   });
 }
@@ -166,24 +216,42 @@ const CLUB_MEMBERS = {
 };
 
 function renderTotals() {
+  const isClub = activeTab === 'club';
   const membersAvail = walletState.member.available;
   const membersLocked = walletState.member.locked;
   const membersTotal = membersAvail + membersLocked;
   const circulating = activeClub.club + activeClub.dscLab + membersTotal;
+  const memberCount = (MEMBERS[activeClub.id] || []).length;
+  const strip = $('#totals-strip');
+  const cards = $$('.totals-card');
 
-  const cards = [
-    { label: 'Club Wallet', value: fmt(activeClub.club) },
-    { label: 'DSC Lab', value: fmt(activeClub.dscLab) },
-    { label: 'Members', value: fmt(membersAvail) + ' available', sub: fmt(membersLocked) + ' locked' },
-    { label: 'Circulating', value: fmt(circulating) },
-  ];
-
-  $$('.totals-card').forEach((card, i) => {
-    card.querySelector('.totals-card-value').textContent = cards[i].value;
-    card.querySelector('.totals-card-label').textContent = cards[i].label;
-    const sub = card.querySelector('.totals-card-sub');
-    if (sub) sub.textContent = cards[i].sub || '';
-  });
+  if (isClub) {
+    strip.style.gridTemplateColumns = 'repeat(2, 1fr)';
+    cards[1].style.display = 'none';
+    cards[3].style.display = 'none';
+    cards[0].querySelector('.totals-card-label').textContent = 'Club Wallet';
+    cards[0].querySelector('.totals-card-value').textContent = fmt(activeClub.club);
+    cards[2].querySelector('.totals-card-label').textContent = 'Total Members';
+    cards[2].querySelector('.totals-card-value').textContent = memberCount;
+    const sub2 = cards[2].querySelector('.totals-card-sub');
+    if (sub2) sub2.textContent = '';
+  } else {
+    strip.style.gridTemplateColumns = '';
+    cards[1].style.display = '';
+    cards[3].style.display = '';
+    const defs = [
+      { label: 'Club Wallet', value: fmt(activeClub.club) },
+      { label: 'DSC Lab', value: fmt(activeClub.dscLab) },
+      { label: 'Members', value: fmt(membersAvail) + ' available', sub: fmt(membersLocked) + ' locked' },
+      { label: 'Circulating', value: fmt(circulating) },
+    ];
+    cards.forEach((card, i) => {
+      card.querySelector('.totals-card-label').textContent = defs[i].label;
+      card.querySelector('.totals-card-value').textContent = defs[i].value;
+      const sub = card.querySelector('.totals-card-sub');
+      if (sub) sub.textContent = defs[i].sub || '';
+    });
+  }
 }
 
 // --- Ecosystem SVG (DSC Lab tab only) ---
@@ -247,14 +315,9 @@ function renderMemberView() {
 
 // --- Club View ---
 function renderClubView() {
-  const clubBalance = activeClub.club;
-  walletState.club.balance = activeClub.club; // keep in sync
-
-  // Wallet
-  $('#club-balance').textContent = fmt(clubBalance);
-
-  // Transactions
-  renderTxList('#club-tx-list', TX_HISTORY.club);
+  walletState.club.balance = activeClub.club;
+  $('#club-balance').textContent = fmt(activeClub.club);
+  renderClubTxList();
 }
 
 // --- DSC Lab View ---
@@ -407,6 +470,141 @@ function addTx(scope, tx) {
   TX_HISTORY[scope].unshift({ id: Date.now(), ...tx });
 }
 
+// --- Club TX filter helpers ---
+function getFilteredClubTxs() {
+  const f = activeFilters;
+  return TX_HISTORY.club.filter(tx => {
+    if (f.member) {
+      if (!tx.memberName) return false;
+      if (!tx.memberName.toLowerCase().includes(f.member.toLowerCase())) return false;
+    }
+    if (f.types.length > 0 && (!tx.activityType || !f.types.includes(tx.activityType))) return false;
+    if (f.dateFrom && tx.date && tx.date < f.dateFrom) return false;
+    if (f.dateTo && tx.date && tx.date > f.dateTo) return false;
+    const minAmt = f.amountMin !== '' ? parseInt(f.amountMin, 10) : null;
+    const maxAmt = f.amountMax !== '' ? parseInt(f.amountMax, 10) : null;
+    if (minAmt !== null && tx.amountNum !== undefined && tx.amountNum < minAmt) return false;
+    if (maxAmt !== null && tx.amountNum !== undefined && tx.amountNum > maxAmt) return false;
+    return true;
+  });
+}
+
+function clearFilters() {
+  activeFilters = { member: '', types: [], dateFrom: '', dateTo: '', amountMin: '', amountMax: '' };
+  const els = ['#filter-member', '#filter-date-from', '#filter-date-to', '#filter-amount-min', '#filter-amount-max'];
+  els.forEach(sel => { const el = $(sel); if (el) el.value = ''; });
+  $$('.type-chip').forEach(c => c.classList.toggle('active', c.dataset.type === 'all'));
+  updateFilterBadge();
+  renderClubTxList();
+}
+
+function updateFilterBadge() {
+  const f = activeFilters;
+  const count = (f.member ? 1 : 0) + f.types.length + (f.dateFrom ? 1 : 0) + (f.dateTo ? 1 : 0) + (f.amountMin !== '' ? 1 : 0) + (f.amountMax !== '' ? 1 : 0);
+  const badge = $('#filter-active-count');
+  if (!badge) return;
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'inline-flex' : 'none';
+}
+
+function renderClubTxList() {
+  const filtered = getFilteredClubTxs();
+  const total = TX_HISTORY.club.length;
+  const hasFilter = activeFilters.member || activeFilters.types.length > 0 || activeFilters.dateFrom || activeFilters.dateTo || activeFilters.amountMin !== '' || activeFilters.amountMax !== '';
+
+  const countEl = $('#filter-result-count');
+  if (countEl) countEl.textContent = hasFilter ? `Showing ${filtered.length} of ${total}` : '';
+
+  const list = $('#club-tx-list');
+  if (!list) return;
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty-state">No transactions match these filters. <a href="#" id="filter-clear-inline" style="color:var(--indigo-600);">Clear filters</a></div>';
+    const inlineLink = list.querySelector('#filter-clear-inline');
+    if (inlineLink) inlineLink.addEventListener('click', e => { e.preventDefault(); clearFilters(); });
+    return;
+  }
+
+  list.innerHTML = filtered.map(tx => `
+    <div class="tx-item selectable${selectedTxIds.has(tx.id) ? ' tx-selected' : ''}" data-tx-id="${tx.id}">
+      <input type="checkbox" class="tx-checkbox" ${selectedTxIds.has(tx.id) ? 'checked' : ''} tabindex="-1">
+      <div class="tx-icon ${txIcon(tx.type)}">${tx.type === 'in' ? '↑' : tx.type === 'out' ? '↓' : '○'}</div>
+      <div class="tx-info">
+        <div class="tx-title">${tx.title}</div>
+        <div class="tx-meta">${tx.meta}${tx.note ? ' · ' + tx.note : ''}</div>
+      </div>
+      <div class="tx-amount ${tx.amount.startsWith('+') ? 'positive' : 'negative'}">${tx.amount}</div>
+    </div>
+  `).join('');
+}
+
+function updateCompensateBar() {
+  const bar = $('#compensate-bar');
+  if (!bar) return;
+  if (selectedTxIds.size === 0) { bar.style.display = 'none'; return; }
+
+  const uniqueMembers = new Set();
+  TX_HISTORY.club.forEach(tx => {
+    if (!selectedTxIds.has(tx.id)) return;
+    if (tx.memberId) uniqueMembers.add(tx.memberId);
+    if (tx.memberIds) tx.memberIds.forEach(id => uniqueMembers.add(id));
+  });
+
+  const summary = $('#compensate-summary');
+  if (summary) summary.textContent = `${selectedTxIds.size} transaction${selectedTxIds.size !== 1 ? 's' : ''} selected · ${uniqueMembers.size} unique member${uniqueMembers.size !== 1 ? 's' : ''}`;
+  bar.style.display = 'flex';
+}
+
+// --- Open distribute/compensate modal ---
+function openDistributeModal(options = {}) {
+  const mode = options.mode || 'distribute';
+  distributeMode = mode;
+
+  $('#distribute-modal .modal-title').textContent = mode === 'compensate' ? 'Compensate Members' : 'Distribute to Members';
+  $('#btn-distribute-confirm').textContent = mode === 'compensate' ? 'Send Compensation' : 'Distribute Tokens';
+
+  const reasons = mode === 'compensate' ? REASON_CODES.refund : REASON_CODES.distribute;
+  $('#distribute-reason').innerHTML = reasons.map(r => `<option value="${r}">${r}</option>`).join('');
+
+  selectedMemberIds = new Set(options.preselectedIds || []);
+  $('#member-search').value = '';
+  renderMemberTable();
+  updateDistributeSummary();
+  openModal('distribute-modal');
+}
+
+// --- Member table (Distribute modal) ---
+function renderMemberTable(filter = '') {
+  const wrap = $('#member-table-wrap');
+  if (!wrap) return;
+  const members = MEMBERS[activeClub.id] || [];
+  const lower = filter.toLowerCase().trim();
+  const filtered = lower ? members.filter(m => m.name.toLowerCase().includes(lower)) : members;
+
+  if (filtered.length === 0) {
+    wrap.innerHTML = '<div style="padding:12px 16px;text-align:center;font-size:12px;color:var(--gray-500);">No members found</div>';
+    return;
+  }
+
+  wrap.innerHTML = filtered.map(m => `
+    <div class="member-row${selectedMemberIds.has(m.id) ? ' selected' : ''}" data-member-id="${m.id}">
+      <input type="checkbox" ${selectedMemberIds.has(m.id) ? 'checked' : ''} style="cursor:pointer;flex-shrink:0;" tabindex="-1">
+      <span class="member-row-name">${m.name}</span>
+      <span class="member-row-balance">${fmt(m.available)} avail</span>
+    </div>
+  `).join('');
+}
+
+function updateDistributeSummary() {
+  const count = selectedMemberIds.size;
+  const amountEl = $('#distribute-amount');
+  const amount = amountEl ? (parseInt(amountEl.value, 10) || 0) : 0;
+  const countEl = $('#distribute-selected-count');
+  const totalEl = $('#distribute-total');
+  if (countEl) countEl.textContent = `${count} member${count !== 1 ? 's' : ''} selected`;
+  if (totalEl) totalEl.textContent = fmt(count * amount);
+}
+
 function initModals() {
   // Close on overlay click
   $$('.modal-overlay').forEach(overlay => {
@@ -464,7 +662,13 @@ function initModals() {
         title: 'Credit Purchase',
         meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Stripe',
         amount: '+' + amount,
+        amountNum: amount,
         type: 'in',
+        activityType: 'purchase',
+        memberId: null,
+        memberName: null,
+        memberIds: null,
+        date: new Date().toISOString().slice(0, 10),
       });
     }
     $('#purchase-amount').value = '';
@@ -479,43 +683,88 @@ function initModals() {
   });
 
   // Distribute modal (Club)
-  $('#btn-distribute').addEventListener('click', () => openModal('distribute-modal'));
+  $('#btn-distribute').addEventListener('click', () => {
+    openDistributeModal({ mode: 'distribute' });
+  });
 
-  // Re-auth flow for distribute
+  // Member table — delegated row click (toggle selection)
+  $('#member-table-wrap').addEventListener('click', e => {
+    const row = e.target.closest('.member-row');
+    if (!row) return;
+    const id = row.dataset.memberId;
+    if (selectedMemberIds.has(id)) {
+      selectedMemberIds.delete(id);
+    } else {
+      selectedMemberIds.add(id);
+    }
+    renderMemberTable($('#member-search').value);
+    updateDistributeSummary();
+  });
+
+  // Search filter
+  $('#member-search').addEventListener('input', e => {
+    renderMemberTable(e.target.value);
+  });
+
+  // Live total preview on amount change
+  $('#distribute-amount').addEventListener('input', updateDistributeSummary);
+
+  // Re-auth + distribute confirm
   $('#btn-distribute-confirm').addEventListener('click', () => {
     const password = $('#distribute-password').value;
     const amount = parseInt($('#distribute-amount').value, 10);
 
+    if (selectedMemberIds.size === 0) {
+      alert('Please select at least one member.');
+      return;
+    }
     if (!password) {
-      alert('Password required for this action');
+      alert('Password required for this action.');
       return;
     }
     if (!amount || amount < 1) {
-      alert('Please enter a valid amount per member');
+      alert('Please enter a valid amount per member.');
       return;
     }
-    if (activeClub.club < amount) {
-      alert(`Not enough club tokens. Need ${amount}, have ${activeClub.club}.`);
+    const total = selectedMemberIds.size * amount;
+    if (activeClub.club < total) {
+      alert(`Not enough club tokens. Need ${total} (${selectedMemberIds.size} × ${amount}), have ${activeClub.club}.`);
       return;
     }
 
-    // Transfer: Club → Member available
-    activeClub.club -= amount;
-    walletState.member.available += amount;
+    // Transfer: Club → selected member wallets
+    activeClub.club -= total;
+    walletState.member.available += total;
+
+    (MEMBERS[activeClub.id] || []).forEach(m => {
+      if (selectedMemberIds.has(m.id)) m.available += amount;
+    });
+
+    const count = selectedMemberIds.size;
+    const isCompensate = distributeMode === 'compensate';
+    const today = new Date().toISOString().slice(0, 10);
+    const dateLabel = new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
 
     addTx('club', {
-      title: 'Distributed to Members',
-      meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Member reward',
-      amount: `-${amount}`,
+      title: isCompensate ? 'Compensation Sent' : 'Distributed to Members',
+      meta: dateLabel + ` · ${count} member${count !== 1 ? 's' : ''}`,
+      amount: `-${total}`,
+      amountNum: total,
       type: 'out',
+      activityType: isCompensate ? 'refund' : 'distribute',
+      memberId: null,
+      memberName: null,
+      memberIds: [...selectedMemberIds],
+      date: today,
     });
     addTx('member', {
-      title: 'Club Distribution',
-      meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Received from club',
+      title: isCompensate ? 'Compensation Received' : 'Club Distribution',
+      meta: dateLabel + (isCompensate ? ' · Refund from club' : ' · Received from club'),
       amount: `+${amount}`,
       type: 'in',
     });
 
+    selectedMemberIds = new Set();
     $('#distribute-amount').value = '';
     $('#distribute-password').value = '';
     closeModal('distribute-modal');
@@ -523,7 +772,9 @@ function initModals() {
 
     const badge = document.createElement('div');
     badge.style.cssText = 'position:fixed;top:70px;right:24px;background:var(--indigo-600);color:white;z-index:100;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;animation:fadeOut 2s forwards';
-    badge.textContent = `Distributed ${amount} tokens to members`;
+    badge.textContent = isCompensate
+      ? `Sent ${amount} compensation to ${count} member${count !== 1 ? 's' : ''}`
+      : `Distributed ${amount} tokens to ${count} member${count !== 1 ? 's' : ''}`;
     document.body.appendChild(badge);
     setTimeout(() => badge.remove(), 2000);
   });
@@ -565,7 +816,13 @@ function initModals() {
       title: 'DSC Lab Gift',
       meta: new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Gift from DSC Lab',
       amount: `+${amount}`,
+      amountNum: amount,
       type: 'in',
+      activityType: 'gift',
+      memberId: null,
+      memberName: null,
+      memberIds: null,
+      date: new Date().toISOString().slice(0, 10),
     });
 
     $('#gift-amount').value = '';
@@ -623,10 +880,110 @@ function initModals() {
     setTimeout(() => badge.remove(), 2000);
   });
 
-  // Populate reason selects
-  $('#distribute-reason').innerHTML = REASON_CODES.distribute.map(r => `<option value="${r}">${r}</option>`).join('');
+  // Populate reason selects (gift + burn; distribute is handled by openDistributeModal)
   $('#gift-reason').innerHTML = REASON_CODES.gift.map(r => `<option value="${r}">${r}</option>`).join('');
   $('#burn-reason').innerHTML = REASON_CODES.burn.map(r => `<option value="${r}">${r}</option>`).join('');
+}
+
+// --- Club filter bar + TX selection + compensate bar wiring ---
+function initClubFilters() {
+  $('#btn-filter-toggle').addEventListener('click', () => {
+    const bar = $('#club-filter-bar');
+    bar.style.display = bar.style.display === 'none' ? 'block' : 'none';
+  });
+
+  $('#filter-member').addEventListener('input', e => {
+    activeFilters.member = e.target.value;
+    updateFilterBadge();
+    renderClubTxList();
+  });
+
+  $('#filter-date-from').addEventListener('change', e => {
+    activeFilters.dateFrom = e.target.value;
+    updateFilterBadge();
+    renderClubTxList();
+  });
+
+  $('#filter-date-to').addEventListener('change', e => {
+    activeFilters.dateTo = e.target.value;
+    updateFilterBadge();
+    renderClubTxList();
+  });
+
+  $('#filter-amount-min').addEventListener('input', e => {
+    activeFilters.amountMin = e.target.value;
+    updateFilterBadge();
+    renderClubTxList();
+  });
+
+  $('#filter-amount-max').addEventListener('input', e => {
+    activeFilters.amountMax = e.target.value;
+    updateFilterBadge();
+    renderClubTxList();
+  });
+
+  $('#filter-type-chips').addEventListener('click', e => {
+    const chip = e.target.closest('.type-chip');
+    if (!chip) return;
+    const type = chip.dataset.type;
+    if (type === 'all') {
+      activeFilters.types = [];
+    } else {
+      const idx = activeFilters.types.indexOf(type);
+      if (idx === -1) activeFilters.types.push(type);
+      else activeFilters.types.splice(idx, 1);
+    }
+    $$('.type-chip').forEach(c => {
+      if (c.dataset.type === 'all') c.classList.toggle('active', activeFilters.types.length === 0);
+      else c.classList.toggle('active', activeFilters.types.includes(c.dataset.type));
+    });
+    updateFilterBadge();
+    renderClubTxList();
+  });
+
+  $('#filter-clear').addEventListener('click', e => { e.preventDefault(); clearFilters(); });
+
+  $('#select-all-tx').addEventListener('change', e => {
+    const filtered = getFilteredClubTxs();
+    if (e.target.checked) filtered.forEach(tx => selectedTxIds.add(tx.id));
+    else filtered.forEach(tx => selectedTxIds.delete(tx.id));
+    renderClubTxList();
+    updateCompensateBar();
+  });
+
+  $('#club-tx-list').addEventListener('click', e => {
+    const row = e.target.closest('.tx-item[data-tx-id]');
+    if (!row) return;
+    const rawId = row.dataset.txId;
+    const numId = parseInt(rawId, 10);
+    const id = isNaN(numId) ? rawId : numId;
+    if (selectedTxIds.has(id)) selectedTxIds.delete(id);
+    else selectedTxIds.add(id);
+    renderClubTxList();
+    updateCompensateBar();
+  });
+
+  $('#compensate-clear').addEventListener('click', e => {
+    e.preventDefault();
+    selectedTxIds = new Set();
+    $('#select-all-tx').checked = false;
+    renderClubTxList();
+    updateCompensateBar();
+  });
+
+  $('#btn-compensate').addEventListener('click', () => {
+    const uniqueMembers = new Set();
+    TX_HISTORY.club.forEach(tx => {
+      if (!selectedTxIds.has(tx.id)) return;
+      if (tx.memberId) uniqueMembers.add(tx.memberId);
+      if (tx.memberIds) tx.memberIds.forEach(id => uniqueMembers.add(id));
+    });
+    if (uniqueMembers.size === 0) {
+      alert('No members identified in the selected transactions. Select rows with member activity.');
+      return;
+    }
+    openDistributeModal({ mode: 'compensate', preselectedIds: [...uniqueMembers] });
+  });
 }
 
 // --- Master render ---
@@ -647,6 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initClubPicker();
   initModals();
   initActivityHandlers();
+  initClubFilters();
   render();
 
   // Add fadeOut keyframe
